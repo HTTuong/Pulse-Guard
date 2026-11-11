@@ -2,7 +2,7 @@
 
 Quality risks of PulseGuard and how each one maps to requirements and planned tests: **Risk** → **Requirement** → **Test group**. It is written before any code exists, so the tests are planned from risks rather than from features. Each entry will be updated with evidence from real test runs.
 
-Last updated: 2026-11-11. Based on `product-research.md` and `prd.md`.
+Last updated: 2026-11-12. Based on `product-research.md` and `prd.md`.
 
 > PulseGuard is a simulated system for practising testing. It is not a medical device. "Patient safety" below means the harm the same failure would cause in a real product; it is the yardstick for ordering the tests.
 
@@ -54,6 +54,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 | R-REC-02 | A device stops trying to reconnect, or reconnects in a tight loop that overloads the backend | High | Medium | P2 | REQ-CON-04 | SIM |
 | R-REC-03 | A lost sensor or monitor does not raise a technical alarm, or the alarm does not resolve after recovery | Critical | Medium | P1 | REQ-ALM-05, REQ-CON-05 | U, SIM, E2E |
 | R-REC-04 | After a backend restart, alarm state or debounce timers are lost, so an active alarm disappears or a condition starts counting again | High | Medium | P2 | REQ-ALM-01, REQ-ALM-04 | SIM, API |
+| R-REC-05 | While the backend is unreachable no alarm is raised, and the dashboard keeps showing the last values as if the patient were monitored | Critical | Medium | P1 | REQ-VIEW-04, REQ-CON-03, REQ-NFR-01 | SIM, E2E. Accepted limit of the design (`architecture.md`): alarms are raised only in the backend |
 | R-PROTO-01 | A malformed, partial or unknown version message crashes the connection or the server | High | High | P1 | REQ-CON-01 | PR |
 | R-PROTO-02 | A reading from an unpaired, unknown or retired device is accepted | High | Medium | P2 | REQ-DEV-04, REQ-DEV-05, REQ-ACC-03 | PR, API |
 | R-INPUT-01 | An impossible value, wrong unit or missing field is stored as a measurement | Medium | Low | P3 | REQ-MEA-01, REQ-MEA-02 | U, PR |
@@ -63,7 +64,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 
 ## Order of work
 
-- P1 first, in this order: R-ISO-01, R-STALE-01, R-ALM-01, R-ALM-02, R-REC-01, R-REC-03, R-ORD-02, R-ISO-02, R-PROTO-01.
+- P1 first, in this order: R-ISO-01, R-STALE-01, R-ALM-01, R-ALM-02, R-REC-01, R-REC-03, R-REC-05, R-ORD-02, R-ISO-02, R-PROTO-01.
 - The alarm engine is pure logic fed by a clock it is given, so R-ALM-01, R-ALM-02, R-ORD-02 and R-TEST-01 can be tested without a network or real waiting.
 - An independent alarm oracle, written separately from the engine, checks the property tests, as `utils/hard-rules.ts` did in Project 2.
 

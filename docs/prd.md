@@ -2,7 +2,7 @@
 
 What PulseGuard must do, as requirements with ids and measurable acceptance criteria. Every later test names the requirement it checks, so a requirement without a test, or a test without a requirement, shows up in the traceability matrix.
 
-Last updated: 2026-11-11. Based on `product-research.md`.
+Last updated: 2026-11-12. Based on `product-research.md`.
 
 > PulseGuard is a simulated system for practising testing. It is not a medical device. Thresholds and clinical rules below are design assumptions, taken from public guidance where possible, not clinical advice.
 
@@ -160,6 +160,9 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 
 **REQ-VIEW-02 (Must)** Alarms are listed by priority, then by start time, oldest first; a technical alarm is shown next to the parameter it affects.
 
+**REQ-VIEW-04 (Must)** When the central view cannot reach the backend for 10 s, it says so on every screen and marks all values as not current.
+- It never keeps showing the last values as current while the backend is unreachable.
+
 **REQ-VIEW-03 (Should)** The history of a session shows each parameter over a chosen time range, downsampled for long ranges, with its alarms on the same time line.
 
 ## Non-functional
@@ -178,10 +181,10 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 |---|---|
 | Admission | REQ-SES-01, REQ-SES-02 |
 | Pairing | REQ-DEV-01, REQ-DEV-02, REQ-DEV-05 |
-| Monitoring | REQ-MEA-01 to REQ-MEA-06, REQ-CON-01 to REQ-CON-05, REQ-VIEW-01 |
+| Monitoring | REQ-MEA-01 to REQ-MEA-06, REQ-CON-01 to REQ-CON-05, REQ-VIEW-01, REQ-VIEW-04 |
 | Alarm | REQ-ALM-01 to REQ-ALM-08, REQ-VIEW-02 |
 | Discharge | REQ-SES-03, REQ-SES-05, REQ-DEV-03 |
 | Reassignment | REQ-SES-04, REQ-DEV-03, REQ-DEV-04, REQ-MEA-06 |
 | Across all steps | REQ-ACC-01 to REQ-ACC-03, REQ-NFR-01 to REQ-NFR-04, REQ-VIEW-03 |
 
-39 requirements: 36 Must, 3 Should.
+40 requirements: 37 Must, 3 Should.
