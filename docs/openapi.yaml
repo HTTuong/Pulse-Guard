@@ -1,0 +1,837 @@
+openapi: 3.1.0
+info:
+  title: PulseGuard API
+  version: 0.1.0-draft
+  summary: Draft API of PulseGuard, a simulated ward monitoring system for practising testing. Not a medical device.
+  description: Conventions (errors, times, pagination) are described in docs/api.md. Requirement ids are given in x-requirements.
+servers:
+  - url: http://localhost:8000/api/v1
+security:
+  - userToken: []
+tags:
+  - name: auth
+  - name: admin
+  - name: sessions
+  - name: devices
+  - name: measurements
+  - name: alarms
+  - name: ingest
+paths:
+  /health:
+    get:
+      tags: [admin]
+      summary: Liveness and database check
+      security: []
+      responses:
+        "200":
+          description: Up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, database]
+                properties:
+                  status: { const: ok }
+                  database: { enum: [ok, unreachable] }
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Log in a user
+      security: []
+      x-requirements: [REQ-ACC-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              additionalProperties: false
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Token valid for at most 8 hours
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, expires_at, role]
+                properties:
+                  access_token: { type: string }
+                  expires_at: { $ref: "#/components/schemas/Instant" }
+                  role: { $ref: "#/components/schemas/Role" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /units:
+    get:
+      tags: [admin]
+      summary: Units the caller works on (all units for an admin)
+      responses:
+        "200":
+          description: Units with their beds
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Unit" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /absolute-limits/{parameter}:
+    put:
+      tags: [admin]
+      summary: Set the absolute limits of a parameter (admin)
+      x-requirements: [REQ-ALM-06]
+      parameters:
+        - $ref: "#/components/parameters/Parameter"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [min_value, max_value]
+              additionalProperties: false
+              properties:
+                min_value: { type: number }
+                max_value: { type: number }
+      responses:
+        "200": { description: Saved }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /patients:
+    post:
+      tags: [sessions]
+      summary: Register a patient (nurse)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatientInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Patient" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions:
+    get:
+      tags: [sessions]
+      summary: Sessions of the caller's units
+      x-requirements: [REQ-ACC-02, REQ-SES-05]
+      parameters:
+        - { name: unit_id, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/SessionStatus" } }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: One page, newest admission first; closed sessions only within 6 days of discharge
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - properties:
+                      items: { type: array, items: { $ref: "#/components/schemas/Session" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [sessions]
+      summary: Admit a patient to a free bed (nurse)
+      x-requirements: [REQ-SES-01, REQ-SES-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patient_id, bed_id]
+              additionalProperties: false
+              properties:
+                patient_id: { type: string, format: uuid }
+                bed_id: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Session opened with the default limits
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{session_id}:
+    get:
+      tags: [sessions]
+      summary: One session with its devices
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: The session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sessions/{session_id}/discharge:
+    post:
+      tags: [sessions]
+      summary: Discharge; unassigns devices and resolves open alarms in the same transaction (nurse)
+      x-requirements: [REQ-SES-03, REQ-DEV-03, REQ-ALM-08]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Closed session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{session_id}/move:
+    post:
+      tags: [sessions]
+      summary: Move the patient to another free bed (nurse)
+      x-requirements: [REQ-SES-04]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bed_id]
+              additionalProperties: false
+              properties:
+                bed_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Session in its new bed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{session_id}/devices:
+    post:
+      tags: [devices]
+      summary: Assign an available device to an open session (nurse or technician)
+      x-requirements: [REQ-DEV-02, REQ-DEV-05]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id]
+              additionalProperties: false
+              properties:
+                device_id: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Assigned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Assignment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{session_id}/devices/{device_id}:
+    delete:
+      tags: [devices]
+      summary: Unassign a device from its session
+      x-requirements: [REQ-DEV-03]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "204": { description: Unassigned }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sessions/{session_id}/limits:
+    get:
+      tags: [alarms]
+      summary: Alarm limits of the session, per parameter
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Limits
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Limits" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sessions/{session_id}/limits/{parameter}:
+    put:
+      tags: [alarms]
+      summary: Change the limits of one parameter, within the absolute limits (nurse or physician)
+      x-requirements: [REQ-ALM-06]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/Parameter"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LimitsInput" }
+      responses:
+        "200":
+          description: New limits, applied to new readings at once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Limits" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /sessions/{session_id}/measurements:
+    get:
+      tags: [measurements]
+      summary: History of one parameter over a time range, downsampled when long
+      x-requirements: [REQ-VIEW-03, REQ-MEA-04]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - { name: parameter, in: query, required: true, schema: { $ref: "#/components/schemas/Parameter" } }
+        - { name: from, in: query, required: true, schema: { $ref: "#/components/schemas/Instant" } }
+        - { name: to, in: query, required: true, schema: { $ref: "#/components/schemas/Instant" } }
+        - name: max_points
+          in: query
+          description: When the range holds more readings than this, they are grouped in equal time buckets
+          schema: { type: integer, minimum: 10, maximum: 2000, default: 500 }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Raw readings or buckets, oldest first by measured time
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - properties:
+                      downsampled: { type: boolean }
+                      items:
+                        type: array
+                        items:
+                          oneOf:
+                            - $ref: "#/components/schemas/Measurement"
+                            - $ref: "#/components/schemas/Bucket"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sessions/{session_id}/alarms:
+    get:
+      tags: [alarms]
+      summary: Alarms of a session that overlap a time range
+      x-requirements: [REQ-VIEW-03]
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - { name: from, in: query, required: true, schema: { $ref: "#/components/schemas/Instant" } }
+        - { name: to, in: query, required: true, schema: { $ref: "#/components/schemas/Instant" } }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Alarms ordered by start time
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - properties:
+                      items: { type: array, items: { $ref: "#/components/schemas/Alarm" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /overview:
+    get:
+      tags: [measurements]
+      summary: Central view, open sessions of the caller's units with latest values and open alarms
+      x-requirements: [REQ-VIEW-01, REQ-VIEW-02, REQ-CON-05]
+      parameters:
+        - { name: unit_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Overview at server_time
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Overview" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /devices:
+    get:
+      tags: [devices]
+      summary: Device registry (technician, nurse); no vital signs
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/DeviceStatus" } }
+        - { name: kind, in: query, schema: { $ref: "#/components/schemas/DeviceKind" } }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: One page ordered by serial
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - properties:
+                      items: { type: array, items: { $ref: "#/components/schemas/Device" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [devices]
+      summary: Register a device (technician)
+      x-requirements: [REQ-DEV-01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serial, kind]
+              additionalProperties: false
+              properties:
+                serial: { type: string, pattern: "^[A-Z0-9-]{3,40}$" }
+                kind: { $ref: "#/components/schemas/DeviceKind" }
+      responses:
+        "201":
+          description: Registered as AVAILABLE; a patient monitor's credential is returned once
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Device"
+                  - properties:
+                      credential: { type: string, description: Only for PATIENT_MONITOR, shown once }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /devices/{device_id}/retire:
+    post:
+      tags: [devices]
+      summary: Retire a device that is not assigned (technician)
+      x-requirements: [REQ-DEV-04]
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "200":
+          description: Retired
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /alarms:
+    get:
+      tags: [alarms]
+      summary: Open alarms of the caller's units, highest priority first, then oldest first
+      x-requirements: [REQ-VIEW-02, REQ-ALM-08]
+      parameters:
+        - { name: unit_id, in: query, schema: { type: string, format: uuid } }
+        - { name: state, in: query, schema: { $ref: "#/components/schemas/AlarmState" } }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: One page
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Page"
+                  - properties:
+                      items: { type: array, items: { $ref: "#/components/schemas/Alarm" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /alarms/{alarm_id}:
+    get:
+      tags: [alarms]
+      summary: One alarm with its full history
+      x-requirements: [REQ-ALM-03]
+      parameters:
+        - $ref: "#/components/parameters/AlarmId"
+      responses:
+        "200":
+          description: The alarm
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Alarm"
+                  - properties:
+                      history: { type: array, items: { $ref: "#/components/schemas/AlarmEvent" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /alarms/{alarm_id}/acknowledge:
+    post:
+      tags: [alarms]
+      summary: Acknowledge an active alarm (nurse or physician of the unit)
+      x-requirements: [REQ-ALM-03, REQ-ALM-04]
+      parameters:
+        - $ref: "#/components/parameters/AlarmId"
+      responses:
+        "200":
+          description: ACKNOWLEDGED, or RESOLVED when the condition had already cleared
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alarm" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /ingest/pairings:
+    get:
+      tags: [ingest]
+      summary: Sensors currently paired with the calling patient monitor
+      security:
+        - deviceToken: []
+      x-requirements: [REQ-DEV-05]
+      responses:
+        "200":
+          description: Pairings, and recent unpairings with their time
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [monitor, paired, unpaired]
+                properties:
+                  monitor: { type: string }
+                  paired:
+                    type: array
+                    items:
+                      type: object
+                      required: [serial, pairing]
+                      properties:
+                        serial: { type: string }
+                        pairing: { type: string }
+                  unpaired:
+                    type: array
+                    items:
+                      type: object
+                      required: [serial, unpaired_at]
+                      properties:
+                        serial: { type: string }
+                        unpaired_at: { $ref: "#/components/schemas/Instant" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /ingest/batches:
+    post:
+      tags: [ingest]
+      summary: Readings and status events from a patient monitor; safe to send again
+      security:
+        - deviceToken: []
+      x-requirements: [REQ-MEA-01, REQ-MEA-02, REQ-MEA-03, REQ-MEA-05, REQ-MEA-06, REQ-CON-02, REQ-CON-03, REQ-ALM-05, REQ-ACC-03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IngestBatch" }
+      responses:
+        "200":
+          description: Outcome per item; a refused item is final and must not be sent again
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+components:
+  securitySchemes:
+    userToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    deviceToken:
+      type: http
+      scheme: bearer
+      description: Credential issued to a patient monitor at registration
+  parameters:
+    SessionId: { name: session_id, in: path, required: true, schema: { type: string, format: uuid } }
+    DeviceId: { name: device_id, in: path, required: true, schema: { type: string, format: uuid } }
+    AlarmId: { name: alarm_id, in: path, required: true, schema: { type: string, format: uuid } }
+    Parameter: { name: parameter, in: path, required: true, schema: { $ref: "#/components/schemas/Parameter" } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 50 } }
+    Cursor: { name: cursor, in: query, description: Opaque value from next_cursor of the previous page, schema: { type: string } }
+  responses:
+    BadRequest:
+      description: Invalid input
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Unauthorized:
+      description: Missing, invalid or expired token
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Forbidden:
+      description: Role or unit does not allow this
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    NotFound:
+      description: No such resource
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Conflict:
+      description: The current state does not allow this; see code
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    TooLarge:
+      description: Batch over 1000 items or 1 MB
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+  schemas:
+    Instant:
+      type: string
+      format: date-time
+      description: ISO 8601 with an offset; responses always use UTC with milliseconds and Z
+      examples: ["2026-11-12T18:52:03.000Z"]
+    Role: { enum: [NURSE, PHYSICIAN, TECHNICIAN, ADMIN] }
+    Parameter: { enum: [PR, SPO2, RR] }
+    SessionStatus: { enum: [OPEN, CLOSED] }
+    DeviceKind: { enum: [PATIENT_MONITOR, PULSE_OXIMETER, RESPIRATION] }
+    DeviceStatus: { enum: [AVAILABLE, ASSIGNED, RETIRED] }
+    AlarmState: { enum: [ACTIVE, ACKNOWLEDGED, RESOLVED] }
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, description: "URI of the problem type, for example /problems/bed-occupied" }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, description: Stable machine readable code, see docs/api.md }
+        detail: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }
+    Page:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array }
+        next_cursor: { type: [string, "null"], description: null on the last page }
+    Unit:
+      type: object
+      required: [id, code, name, time_zone, beds]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        time_zone: { type: string }
+        beds:
+          type: array
+          items:
+            type: object
+            required: [id, label, occupied]
+            properties:
+              id: { type: string, format: uuid }
+              label: { type: string }
+              occupied: { type: boolean }
+    PatientInput:
+      type: object
+      required: [mrn, given_name, family_name]
+      additionalProperties: false
+      properties:
+        mrn: { type: string, pattern: "^TEST-[0-9]{4,10}$", description: Synthetic record numbers only (REQ-NFR-04) }
+        given_name: { type: string, minLength: 1, maxLength: 100 }
+        family_name: { type: string, minLength: 1, maxLength: 100 }
+        birth_year: { type: integer, minimum: 1900, maximum: 2100 }
+    Patient:
+      allOf:
+        - $ref: "#/components/schemas/PatientInput"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    Session:
+      type: object
+      required: [id, patient, status, unit_id, bed_id, admitted_at, devices]
+      properties:
+        id: { type: string, format: uuid }
+        patient: { $ref: "#/components/schemas/Patient" }
+        status: { $ref: "#/components/schemas/SessionStatus" }
+        unit_id: { type: string, format: uuid }
+        bed_id: { type: [string, "null"], format: uuid, description: null once closed }
+        admitted_at: { $ref: "#/components/schemas/Instant" }
+        discharged_at: { oneOf: [{ $ref: "#/components/schemas/Instant" }, { type: "null" }] }
+        devices: { type: array, items: { $ref: "#/components/schemas/Assignment" } }
+    Device:
+      type: object
+      required: [id, serial, kind, status, connection]
+      properties:
+        id: { type: string, format: uuid }
+        serial: { type: string }
+        kind: { $ref: "#/components/schemas/DeviceKind" }
+        status: { $ref: "#/components/schemas/DeviceStatus" }
+        session_id: { type: [string, "null"], format: uuid }
+        connection:
+          type: object
+          required: [state]
+          properties:
+            state: { enum: [CONNECTED, LOST, UNKNOWN] }
+            since: { $ref: "#/components/schemas/Instant" }
+    Assignment:
+      type: object
+      required: [device_id, serial, kind, session_id, assigned_at]
+      properties:
+        device_id: { type: string, format: uuid }
+        serial: { type: string }
+        kind: { $ref: "#/components/schemas/DeviceKind" }
+        session_id: { type: string, format: uuid }
+        assigned_at: { $ref: "#/components/schemas/Instant" }
+    LimitsInput:
+      type: object
+      additionalProperties: false
+      description: A value at or below high_low or at or above high_high is high priority; at or below medium_low or at or above medium_high is medium. null turns that side off. Set values must go strictly up.
+      properties:
+        high_low: { type: [number, "null"] }
+        medium_low: { type: [number, "null"] }
+        medium_high: { type: [number, "null"] }
+        high_high: { type: [number, "null"] }
+    Limits:
+      allOf:
+        - $ref: "#/components/schemas/LimitsInput"
+        - type: object
+          required: [parameter, changed_at]
+          properties:
+            parameter: { $ref: "#/components/schemas/Parameter" }
+            changed_at: { $ref: "#/components/schemas/Instant" }
+            changed_by: { type: [string, "null"], format: uuid }
+    Measurement:
+      type: object
+      required: [seq, device_id, parameter, value, measured_at]
+      properties:
+        seq: { type: integer }
+        device_id: { type: string, format: uuid }
+        parameter: { $ref: "#/components/schemas/Parameter" }
+        value: { type: number }
+        measured_at: { $ref: "#/components/schemas/Instant" }
+    Bucket:
+      type: object
+      description: Min and max are kept so a short spike stays visible after downsampling
+      required: [from, to, count, min, max, mean]
+      properties:
+        from: { $ref: "#/components/schemas/Instant" }
+        to: { $ref: "#/components/schemas/Instant" }
+        count: { type: integer }
+        min: { type: number }
+        max: { type: number }
+        mean: { type: number }
+    Alarm:
+      type: object
+      required: [id, session_id, kind, code, priority, state, condition_cleared, escalated, started_at]
+      properties:
+        id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        kind: { enum: [PHYSIOLOGICAL, TECHNICAL] }
+        code: { enum: [PR_HIGH, PR_LOW, SPO2_LOW, RR_HIGH, RR_LOW, SENSOR_LOST, MONITOR_LOST] }
+        parameter: { oneOf: [{ $ref: "#/components/schemas/Parameter" }, { type: "null" }] }
+        device_id: { type: [string, "null"], format: uuid }
+        priority: { enum: [MEDIUM, HIGH] }
+        state: { $ref: "#/components/schemas/AlarmState" }
+        condition_cleared: { type: boolean }
+        escalated: { type: boolean }
+        started_at: { $ref: "#/components/schemas/Instant" }
+        acknowledged_at: { oneOf: [{ $ref: "#/components/schemas/Instant" }, { type: "null" }] }
+        acknowledged_by: { type: [string, "null"], format: uuid }
+        resolved_at: { oneOf: [{ $ref: "#/components/schemas/Instant" }, { type: "null" }] }
+        resolution: { enum: [ACKNOWLEDGED_AFTER_CLEAR, AUTO_RESOLVED, DATA_BACK, DISCHARGED, null] }
+    AlarmEvent:
+      type: object
+      required: [at, to_state, priority, reason]
+      properties:
+        at: { $ref: "#/components/schemas/Instant" }
+        from_state: { oneOf: [{ $ref: "#/components/schemas/AlarmState" }, { type: "null" }] }
+        to_state: { $ref: "#/components/schemas/AlarmState" }
+        priority: { enum: [MEDIUM, HIGH] }
+        by_user: { type: [string, "null"], format: uuid }
+        reason: { type: string }
+    Overview:
+      type: object
+      required: [server_time, sessions]
+      properties:
+        server_time: { $ref: "#/components/schemas/Instant" }
+        sessions:
+          type: array
+          items:
+            type: object
+            required: [session_id, patient, bed_label, vitals, open_alarms]
+            properties:
+              session_id: { type: string, format: uuid }
+              patient: { $ref: "#/components/schemas/Patient" }
+              bed_label: { type: string }
+              vitals:
+                type: array
+                items:
+                  type: object
+                  required: [parameter, stale]
+                  properties:
+                    parameter: { $ref: "#/components/schemas/Parameter" }
+                    value: { type: [number, "null"] }
+                    measured_at: { oneOf: [{ $ref: "#/components/schemas/Instant" }, { type: "null" }] }
+                    stale: { type: boolean, description: true when older than 15 s at server_time or never measured }
+              open_alarms: { type: array, items: { $ref: "#/components/schemas/Alarm" } }
+    IngestBatch:
+      type: object
+      required: [monitor, sent_at, readings, events]
+      additionalProperties: false
+      properties:
+        monitor: { type: string, description: Serial of the calling monitor; must match its credential }
+        sent_at: { $ref: "#/components/schemas/Instant" }
+        readings:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            required: [device, seq, parameter, value, unit, measured_at]
+            properties:
+              device: { type: string }
+              seq: { type: integer, minimum: 1 }
+              parameter: { $ref: "#/components/schemas/Parameter" }
+              value: { type: number }
+              unit: { enum: ["beats/min", "%", "breaths/min"] }
+              measured_at: { $ref: "#/components/schemas/Instant" }
+        events:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [event_seq, type, device, at]
+            properties:
+              event_seq: { type: integer, minimum: 1, description: Per monitor, never reused; makes events idempotent }
+              type: { enum: [SENSOR_LOST, SENSOR_BACK, HEARTBEAT] }
+              device: { type: string }
+              at: { $ref: "#/components/schemas/Instant" }
+              reason: { enum: [DISCONNECTED, NO_SIGNAL, null] }
+    IngestResult:
+      type: object
+      required: [stored, duplicates, refused, events_stored]
+      properties:
+        stored: { type: array, items: { $ref: "#/components/schemas/ItemRef" } }
+        duplicates: { type: array, items: { $ref: "#/components/schemas/ItemRef" } }
+        refused:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/ItemRef"
+              - type: object
+                required: [code]
+                properties:
+                  code: { enum: [NOT_PAIRED, UNKNOWN_DEVICE, DEVICE_RETIRED, OUT_OF_RANGE, BAD_UNIT, BAD_TIME, SEQ_CONFLICT, NO_SESSION] }
+                  detail: { type: string }
+        events_stored: { type: array, items: { type: integer } }
+    ItemRef:
+      type: object
+      required: [device, seq]
+      properties:
+        device: { type: string }
+        seq: { type: integer }
