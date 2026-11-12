@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pulseguard"
+version = "0.1.0"
+description = "Simulated ward monitoring system for practising testing. Not a medical device."
+requires-python = ">=3.12"
+# Exact pins: a test run can be repeated with the same versions. Checked to install together on 2026-11-12.
+dependencies = [
+  "fastapi==0.162.5",
+  "uvicorn==0.54.0",
+  "sqlalchemy==2.1.8",
+  "alembic==1.20.1",
+  "psycopg[binary]==3.3.9",
+  "pydantic==2.14.3",
+  "pydantic-settings==2.16.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.2.0",
+  "httpx==0.28.1",
+  "ruff==0.17.5",
+  "mypy==2.4.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pulseguard"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S", "DTZ"]
+# DTZ: no naive datetimes anywhere (R-ORD-03). S: security checks; asserts are fine in tests.
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src", "tests", "migrations"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "db: needs a PostgreSQL server, given by PULSEGUARD_TEST_ADMIN_URL",
+]
