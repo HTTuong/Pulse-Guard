@@ -43,6 +43,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 | R-ORD-01 | Duplicate readings after a resend are stored twice, inflate the history or raise a second alarm | Medium | High | P2 | REQ-MEA-03, REQ-CON-02, REQ-ALM-02 | U, PR, SIM |
 | R-ORD-02 | Readings arriving out of order make an old value the current one, or make the alarm engine raise or resolve on the wrong data | High | High | P1 | REQ-MEA-04, REQ-ALM-01, REQ-ALM-04 | U, PB, SIM |
 | R-ORD-03 | Device clock skew puts readings in the future or far past, so ordering and staleness are wrong | High | Medium | P2 | REQ-MEA-05, REQ-VIEW-01 | U, SIM |
+| R-ORD-04 | A sensor restarts its sequence numbers, so its new readings are taken for duplicates and silently thrown away | Critical | Medium | P1 | REQ-MEA-03 | U, PR, SIM. Found while writing `protocol.md` (P-14): a duplicate needs the same content, not only the same seq |
 | R-ALM-01 | A high priority condition does not raise an alarm, or raises it after more than the debounce time | Critical | Medium | P1 | REQ-ALM-01, REQ-NFR-01 | U (boundaries at 4, 5, 6 s), PB, SIM, LOAD |
 | R-ALM-02 | A latched alarm clears by itself when the value returns, so a short dangerous event is never seen | Critical | Medium | P1 | REQ-ALM-04 | U, PB, E2E |
 | R-ALM-03 | The alarm lifecycle accepts a wrong transition, for example a resolved alarm becomes active again, or acknowledge by someone outside the unit | High | Medium | P2 | REQ-ALM-03, REQ-ACC-02 | U (state by action matrix), API |
@@ -57,6 +58,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 | R-REC-05 | While the backend is unreachable no alarm is raised, and the dashboard keeps showing the last values as if the patient were monitored | Critical | Medium | P1 | REQ-VIEW-04, REQ-CON-03, REQ-NFR-01 | SIM, E2E. Accepted limit of the design (`architecture.md`): alarms are raised only in the backend |
 | R-PROTO-01 | A malformed, partial or unknown version message crashes the connection or the server | High | High | P1 | REQ-CON-01 | PR |
 | R-PROTO-02 | A reading from an unpaired, unknown or retired device is accepted | High | Medium | P2 | REQ-DEV-04, REQ-DEV-05, REQ-ACC-03 | PR, API |
+| R-PROTO-03 | A sensor sends another paired sensor's serial number and its readings are accepted for that patient | High | Low | P3 | REQ-ACC-03, REQ-DEV-05 | PR. Known gap of protocol version 1: sensors are identified by serial only (`protocol.md`, open points) |
 | R-INPUT-01 | An impossible value, wrong unit or missing field is stored as a measurement | Medium | Low | P3 | REQ-MEA-01, REQ-MEA-02 | U, PR |
 | R-PERF-01 | Under 50 sessions the alarm latency grows or readings are dropped | High | Medium | P2 | REQ-NFR-01, REQ-NFR-02 | LOAD |
 | R-TEST-01 | Timing based tests are flaky, so real failures are dismissed as noise | Medium | High | P2 | REQ-NFR-03 | All groups: an injectable clock and seeded simulator instead of real waiting |
@@ -64,7 +66,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 
 ## Order of work
 
-- P1 first, in this order: R-ISO-01, R-STALE-01, R-ALM-01, R-ALM-02, R-REC-01, R-REC-03, R-REC-05, R-ORD-02, R-ISO-02, R-PROTO-01.
+- P1 first, in this order: R-ISO-01, R-STALE-01, R-ALM-01, R-ALM-02, R-REC-01, R-REC-03, R-REC-05, R-ORD-02, R-ORD-04, R-ISO-02, R-PROTO-01.
 - The alarm engine is pure logic fed by a clock it is given, so R-ALM-01, R-ALM-02, R-ORD-02 and R-TEST-01 can be tested without a network or real waiting.
 - An independent alarm oracle, written separately from the engine, checks the property tests, as `utils/hard-rules.ts` did in Project 2.
 

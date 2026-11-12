@@ -91,6 +91,7 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 
 **REQ-MEA-03 (Must)** A reading with the same device and sequence number as an earlier one is a duplicate: it is acknowledged again and stored once.
 - Sending the same reading 3 times leaves exactly 1 stored measurement.
+- A reading with the same device and sequence number but a different parameter, value or measured time is not a duplicate: it is refused as a conflict and counted, so a sensor that restarted its numbering is noticed.
 
 **REQ-MEA-04 (Must)** Readings that arrive out of order are stored in order of their measured time, and the current value is the reading with the latest measured time.
 - Readings measured at t1 < t2 < t3 that arrive t3, t1, t2 give the history t1, t2, t3 and the current value of t3.
@@ -131,6 +132,7 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 ## Connectivity
 
 **REQ-CON-01 (Must)** Sensors, the patient monitor and the backend exchange versioned messages; a message of an unknown version, or one that cannot be read, is refused and logged, and the connection stays usable.
+- A frame whose length is invalid closes the connection, because the start of the next frame can no longer be found; the device then reconnects (REQ-CON-04).
 - The protocol itself is specified in `protocol.md` (d237).
 
 **REQ-CON-02 (Must)** The patient monitor acknowledges each reading; a sensor resends a reading until it is acknowledged.
