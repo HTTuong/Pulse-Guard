@@ -24,15 +24,15 @@ paths:
       security: []
       responses:
         "200":
-          description: Up
+          description: Up and the database answers
           content:
             application/json:
-              schema:
-                type: object
-                required: [status, database]
-                properties:
-                  status: { const: ok }
-                  database: { enum: [ok, unreachable] }
+              schema: { $ref: "#/components/schemas/Health" }
+        "503":
+          description: Up, but the database is unreachable; container healthchecks treat this as unhealthy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
   /auth/login:
     post:
       tags: [auth]
@@ -585,6 +585,13 @@ components:
       description: Batch over 1000 items or 1 MB
       content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
   schemas:
+    Health:
+      type: object
+      required: [status, database, server_time]
+      properties:
+        status: { enum: [ok, degraded] }
+        database: { enum: [ok, unreachable] }
+        server_time: { $ref: "#/components/schemas/Instant" }
     Instant:
       type: string
       format: date-time
