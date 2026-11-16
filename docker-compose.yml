@@ -1,0 +1,30 @@
+# Local stack: PostgreSQL 17 and the backend. Port 5434 so it can run next to Project 2's database on 5433.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: pulseguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulseguard}
+      POSTGRES_DB: pulseguard
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulseguard -d pulseguard"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  backend:
+    build: .
+    environment:
+      PULSEGUARD_DATABASE_URL: postgresql+psycopg://pulseguard:${POSTGRES_PASSWORD:-pulseguard}@db:5432/pulseguard
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

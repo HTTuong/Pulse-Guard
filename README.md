@@ -4,4 +4,40 @@ A simulated wireless patient monitoring system for hospital wards, built to prac
 
 > PulseGuard is not a medical device and must never be used to monitor a real patient. All data is synthetic. It is not affiliated with or endorsed by any manufacturer.
 
-Status: design. See [`docs/product-research.md`](docs/product-research.md), [`docs/prd.md`](docs/prd.md), [`docs/risk-analysis.md`](docs/risk-analysis.md), [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/database.md`](docs/database.md), [`docs/api.md`](docs/api.md) with [`docs/openapi.yaml`](docs/openapi.yaml) and the decisions in [`docs/adr/`](docs/adr/).
+Status: backend skeleton with the health endpoint and the first migration. Design documents: [`docs/product-research.md`](docs/product-research.md), [`docs/prd.md`](docs/prd.md), [`docs/risk-analysis.md`](docs/risk-analysis.md), [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/database.md`](docs/database.md), [`docs/api.md`](docs/api.md) with [`docs/openapi.yaml`](docs/openapi.yaml) and the decisions in [`docs/adr/`](docs/adr/).
+
+## Run with Docker
+
+Needs Docker with Compose.
+
+```bash
+cp .env.example .env                    # then change POSTGRES_PASSWORD
+docker compose up --build -d
+curl http://localhost:8000/api/v1/health
+```
+
+The backend applies the migrations when it starts, then serves the API on port 8000. PostgreSQL 17 listens on port 5434 on the host.
+
+## Develop locally
+
+Needs Python 3.12 or newer and a PostgreSQL server, for example the `db` service above.
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+docker compose up -d db
+export PULSEGUARD_DATABASE_URL=postgresql+psycopg://pulseguard:change-me@localhost:5434/pulseguard
+alembic upgrade head
+uvicorn pulseguard.main:app --reload
+```
+
+Checks:
+
+```bash
+ruff check . && ruff format --check .
+mypy
+export PULSEGUARD_TEST_ADMIN_URL=postgresql+psycopg://pulseguard:change-me@localhost:5434/postgres
+pytest
+```
+
+Tests marked `db` create and drop their own databases through `PULSEGUARD_TEST_ADMIN_URL` and are skipped when it is not set.
