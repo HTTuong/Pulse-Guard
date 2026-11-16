@@ -74,3 +74,19 @@ def test_only_a_nurse_of_the_unit_discharges(ward: Ward, actor: Actor) -> None:
 def test_discharge_unknown_session_is_404(ward: Ward) -> None:
     assert discharge(ward, str(uuid.uuid4())).status_code == 404
 
+
+def test_discharge_at_the_same_instant_as_admission(ward: Ward) -> None:
+    """An admission made by mistake and undone at once; the clock has not moved."""
+    session_id = admitted(ward)
+    response = discharge(ward, session_id)
+    assert response.status_code == 200, response.text
+
+
+def test_discharge_when_the_wall_clock_went_back(ward: Ward) -> None:
+    """The server clock is set back after an admission (for example by NTP)."""
+    session_id = admitted(ward)
+    ward.clock.current -= timedelta(seconds=30)
+    response = discharge(ward, session_id)
+    assert response.status_code == 200, response.text
+    # Recorded as the admission time, never before it.
+    assert response.json()["discharged_at"] == response.json()["admitted_at"]

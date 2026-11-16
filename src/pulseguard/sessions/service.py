@@ -1,6 +1,7 @@
 """Rules of admission and discharge. Checks run in the order of docs/api.md:
 existence (404), then permission (403), then state (409)."""
 
+import logging
 import uuid
 from datetime import datetime
 
@@ -18,6 +19,8 @@ from pulseguard.sessions.schemas import (
     PatientOut,
     SessionOut,
 )
+
+log = logging.getLogger(__name__)
 
 
 def conflict_from(error: IntegrityError) -> ApiError:
@@ -138,10 +141,15 @@ def discharge(db: Session, actor: Actor, clock: Clock, session_id: uuid.UUID) ->
     if session.status != "OPEN":
         raise ApiError(409, "SESSION_CLOSED", "Session is already closed")
     stay = latest_stay(db, session.id)
+    # Never before the current stay began: the wall clock can be set back, and a discharge must
+    # still succeed (found in d240, migration 0002).
     now: datetime = clock.now()
+    ended = max(now, stay.from_at)
+    if ended != now:
+        log.warning("clock before the bed stay of session %s; discharge time clamped", session.id)
     session.status = "CLOSED"
-    session.discharged_at = now
+    session.discharged_at = ended
     session.discharged_by = actor.user_id
-    stay.to_at = now
+    stay.to_at = ended
     db.commit()
     return session_out(db, session)
