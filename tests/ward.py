@@ -1,4 +1,5 @@
-"""A ward with fixed fake data, and a client that acts as a chosen user."""
+"""A ward with fixed fake data, and a client that acts as a chosen user. The `ward` fixture is
+registered in tests/conftest.py so every test package can use it."""
 
 import uuid
 from collections.abc import Iterator

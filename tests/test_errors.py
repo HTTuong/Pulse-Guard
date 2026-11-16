@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pulseguard.access.actor import current_actor
 from pulseguard.api.app import create_app
 from pulseguard.db import make_engine
-from tests.sessions.conftest import NURSE_W1
+from tests.ward import NURSE_W1
 
 UNREACHABLE_URL = "postgresql+psycopg://nobody:nothing@127.0.0.1:1/none"
 SESSION = "/api/v1/sessions/00000000-0000-0000-0000-000000000001"

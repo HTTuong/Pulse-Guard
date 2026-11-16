@@ -66,3 +66,7 @@ def alembic_config(database_url: str) -> Config:
 def migrated_database_url(fresh_database_url: str) -> str:
     command.upgrade(alembic_config(fresh_database_url), "head")
     return fresh_database_url
+
+
+# Shared fixtures from other files, registered here so every test package sees them.
+from tests.ward import ward  # noqa: E402, F401

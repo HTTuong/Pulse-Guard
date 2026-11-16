@@ -7,7 +7,7 @@ import pytest
 from httpx import Response
 
 from pulseguard.access.actor import Actor
-from tests.sessions.conftest import NURSE_W1, NURSE_W2, PHYSICIAN_W1, Ward, bed
+from tests.ward import NURSE_W1, NURSE_W2, PHYSICIAN_W1, Ward, bed
 
 pytestmark = pytest.mark.db
 

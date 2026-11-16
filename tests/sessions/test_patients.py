@@ -2,7 +2,7 @@
 
 import pytest
 
-from tests.sessions.conftest import NURSE_W1, PHYSICIAN_W1, Ward
+from tests.ward import NURSE_W1, PHYSICIAN_W1, Ward
 
 pytestmark = pytest.mark.db
 
