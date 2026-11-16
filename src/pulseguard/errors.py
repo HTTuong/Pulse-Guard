@@ -16,6 +16,9 @@ CONSTRAINT_CODES: dict[str, tuple[int, str, str]] = {
         409, "PATIENT_HAS_OPEN_SESSION", "Patient already has an open session"),
     "bed_stay_no_overlap_per_bed": (409, "BED_OCCUPIED", "Bed is occupied"),
     "patient_mrn_key": (409, "MRN_TAKEN", "Record number is already used"),
+    "device_serial_key": (409, "SERIAL_TAKEN", "Serial number is already registered"),
+    "assignment_no_overlap_per_device": (
+        409, "DEVICE_NOT_AVAILABLE", "Device is assigned to another session"),
 }  # fmt: skip
 
 

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from pulseguard.access.actor import Actor, Role
 from pulseguard.clock import Clock, to_wire
+from pulseguard.devices import assignments
 from pulseguard.errors import CONSTRAINT_CODES, ApiError, not_found
 from pulseguard.models import Bed, BedStay, MonitoringSession, Patient
 from pulseguard.sessions.schemas import (
@@ -64,6 +65,16 @@ def session_out(db: Session, session: MonitoringSession) -> SessionOut:
         bed_id=bed.id if is_open else None,
         admitted_at=to_wire(session.admitted_at),
         discharged_at=to_wire(session.discharged_at) if session.discharged_at else None,
+        devices=[
+            {
+                "device_id": str(device.id),
+                "serial": device.serial,
+                "kind": device.kind,
+                "session_id": str(session.id),
+                "assigned_at": to_wire(assignment.assigned_at),
+            }
+            for assignment, device in assignments.open_assignments(db, session.id)
+        ],
     )
 
 
@@ -134,8 +145,8 @@ def get_session(db: Session, actor: Actor, session_id: uuid.UUID) -> SessionOut:
 
 
 def discharge(db: Session, actor: Actor, clock: Clock, session_id: uuid.UUID) -> SessionOut:
-    """REQ-SES-03. Unassigning devices (d241) and resolving alarms (d243) join this transaction
-    when those modules exist."""
+    """REQ-SES-03: closes the session, frees the bed and unassigns every device in one
+    transaction. Resolving open alarms (d243) joins this transaction when that module exists."""
     session = load_for_staff(db, actor, session_id)
     actor.require_role(Role.NURSE)
     if session.status != "OPEN":
@@ -151,5 +162,6 @@ def discharge(db: Session, actor: Actor, clock: Clock, session_id: uuid.UUID) ->
     session.discharged_at = ended
     session.discharged_by = actor.user_id
     stay.to_at = ended
+    assignments.unassign_all(db, session.id, ended, actor.user_id)
     db.commit()
     return session_out(db, session)

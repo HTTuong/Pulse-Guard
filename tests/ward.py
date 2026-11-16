@@ -9,10 +9,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
+from sqlalchemy.orm import Session
 
 from pulseguard.access.actor import Actor, Role, current_actor
 from pulseguard.api.app import create_app
-from pulseguard.db import make_engine
+from pulseguard.db import make_engine, make_sessionmaker
 from tests.conftest import FakeClock
 
 W1 = uuid.UUID("10000000-0000-0000-0000-000000000001")
@@ -61,6 +62,10 @@ class Ward:
             self.app.dependency_overrides[current_actor] = lambda: actor
         return TestClient(self.app, raise_server_exceptions=False)
 
+    def sessions(self) -> Session:
+        """A database session for calling module functions directly."""
+        return make_sessionmaker(self.engine)()
+
     def scalar(self, sql: str, **params: object) -> object:
         """One value from the database, with bound parameters (never formatted into the SQL)."""
         with self.engine.connect() as connection:
@@ -70,6 +75,22 @@ class Ward:
         response = self.client(NURSE_W1).post(
             "/api/v1/patients",
             json={"mrn": f"TEST-{number:04d}", "given_name": "Aino", "family_name": "Example"},
+        )
+        assert response.status_code == 201, response.text
+        return str(response.json()["id"])
+
+    def open_session(self, number: int, bed_number: int) -> str:
+        """Register patient `number` and admit them to bed W1-B`bed_number`."""
+        response = self.client(NURSE_W1).post(
+            "/api/v1/sessions",
+            json={"patient_id": self.new_patient(number), "bed_id": str(bed(1, bed_number))},
+        )
+        assert response.status_code == 201, response.text
+        return str(response.json()["id"])
+
+    def new_device(self, serial: str, kind: str) -> str:
+        response = self.client(TECHNICIAN).post(
+            "/api/v1/devices", json={"serial": serial, "kind": kind}
         )
         assert response.status_code == 201, response.text
         return str(response.json()["id"])

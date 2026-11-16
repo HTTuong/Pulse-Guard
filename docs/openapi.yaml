@@ -685,7 +685,7 @@ components:
           required: [state]
           properties:
             state: { enum: [CONNECTED, LOST, UNKNOWN] }
-            since: { $ref: "#/components/schemas/Instant" }
+            since: { oneOf: [{ $ref: "#/components/schemas/Instant" }, { type: "null" }], description: null while UNKNOWN }
     Assignment:
       type: object
       required: [device_id, serial, kind, session_id, assigned_at]

@@ -72,3 +72,41 @@ class BedStay(Base):
     bed_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bed.id"))
     from_at: Mapped[datetime] = mapped_column(Timestamp)
     to_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
+DEVICE_KINDS = ("PATIENT_MONITOR", "PULSE_OXIMETER", "RESPIRATION")
+DEVICE_STATUSES = ("AVAILABLE", "ASSIGNED", "RETIRED")
+
+
+class Device(Base):
+    __tablename__ = "device"
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    serial: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(ENUM(*DEVICE_KINDS, name="device_kind", create_type=False))
+    status: Mapped[str] = mapped_column(
+        ENUM(*DEVICE_STATUSES, name="device_status", create_type=False)
+    )
+    credential_hash: Mapped[str | None] = mapped_column(Text)
+    registered_at: Mapped[datetime] = mapped_column(Timestamp)
+    retired_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
+class DeviceAssignment(Base):
+    __tablename__ = "device_assignment"
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("device.id"))
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitoring_session.id"))
+    assigned_at: Mapped[datetime] = mapped_column(Timestamp)
+    assigned_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"))
+    unassigned_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    unassigned_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+
+
+class DeviceConnection(Base):
+    __tablename__ = "device_connection"
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("device.id"), primary_key=True)
+    state: Mapped[str] = mapped_column(
+        ENUM("CONNECTED", "LOST", name="connection_state", create_type=False)
+    )
+    since: Mapped[datetime] = mapped_column(Timestamp)
+    last_seen_at: Mapped[datetime] = mapped_column(Timestamp)

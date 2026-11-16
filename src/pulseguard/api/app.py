@@ -8,6 +8,7 @@ from pulseguard.api import health
 from pulseguard.clock import Clock, SystemClock
 from pulseguard.config import Settings
 from pulseguard.db import make_engine, make_sessionmaker
+from pulseguard.devices.router import router as devices_router
 from pulseguard.sessions.router import router as sessions_router
 
 API_PREFIX = "/api/v1"
@@ -30,4 +31,5 @@ def create_app(
     errors.install(app)
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(sessions_router, prefix=API_PREFIX)
+    app.include_router(devices_router, prefix=API_PREFIX)
     return app

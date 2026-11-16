@@ -37,5 +37,5 @@ class SessionOut(BaseModel):
     bed_id: uuid.UUID | None
     admitted_at: str
     discharged_at: str | None
-    # Filled by the device module (d241); empty until then.
+    # Devices assigned now; empty once the session is closed.
     devices: list[dict[str, str]] = []
