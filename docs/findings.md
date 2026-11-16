@@ -11,3 +11,18 @@ Defects and surprises found while building and testing, with the evidence and wh
 - Fix: discharge time is `max(now, start of the current bed stay)`, logged as a warning when clamped; migration `0002` allows a stay that ends when it starts (`to_at >= from_at`).
 - Tests: `test_discharge_at_the_same_instant_as_admission`, `test_discharge_when_the_wall_clock_went_back`.
 - Related: R-ORD-03 (clock skew). The same pattern (`assignment_order_ck`) exists on device assignments and is checked in d241.
+
+## F-02: Unassigning a device fails with 500 when the clock has not moved forward
+
+- Found: 2026-11-16, d241, by tests written from F-01: the same constraint pattern existed on device assignments.
+- Steps: assign a sensor to a session, then unassign it at the same instant, or after the wall clock is set back.
+- Result: 500 from `assignment_order_ck` (`unassigned_at > assigned_at`). The state by action matrix also hit it: its ASSIGNED then unassign cell runs without moving the clock.
+- Severity: High. A sensor put on the wrong patient by mistake cannot be taken off at once, and a discharge with such a sensor would fail the same way.
+- Fix: unassign time is `max(now, assigned_at)`; migration `0003` allows `unassigned_at = assigned_at`.
+- Tests: `test_unassign_at_the_same_instant_as_assign`, `test_unassign_when_the_wall_clock_went_back`, and the matrix cell ASSIGNED, unassign.
+- Lesson: when a defect comes from a pattern, search for the pattern. All other order checks in the schema are now `>=` or allow the equal case: `session_closed_fields_ck` already did.
+
+## Note: a race test can pass by luck
+
+- In d241 the session row lock that keeps one sensor of each kind per session was removed on purpose. The test with 10 parallel assignments still passed in 1 of 5 runs.
+- The test now repeats the race on 5 sessions. Without the lock it failed 10 of 10 runs; with the lock it passed 5 of 5.

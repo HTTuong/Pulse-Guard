@@ -2,7 +2,7 @@
 
 The PostgreSQL schema and the rules it enforces by itself. Since d239 the Alembic migrations in `migrations/versions/` are the source of truth. `db/schema-draft.sql` is the design they started from and is no longer updated.
 
-Last updated: 2026-11-16 (d240: migration 0002).
+Last updated: 2026-11-16 (d241: migration 0003).
 
 ## Tables
 
@@ -36,7 +36,7 @@ Time ranges are half open, `[from, to)`: a stay or assignment that ends at 10:00
 
 ## Rules left to code, and why
 
-- One patient monitor and one sensor per parameter in a session: the device kind is in another table, so a constraint cannot see it. The assigning transaction locks the session row first (`SELECT ... FOR UPDATE`), then checks; the lock makes parallel assignments wait for each other.
+- One patient monitor and one sensor per parameter in a session: the device kind is in another table, so a constraint cannot see it. The assigning transaction locks the session row first (`SELECT ... FOR UPDATE`), then checks; the lock makes parallel assignments wait for each other. Without the lock, 10 parallel assignments of one kind gave more than one assignment (d241, `findings.md`).
 - Absolute limits on session limits: they change at run time, so they are checked by the API when limits are set.
 - Readings outside the time window (REQ-MEA-05): the window depends on the current time, which a constraint should not use.
 - State transitions such as RESOLVED never going back to ACTIVE: checked by the alarm engine; `alarm_event` keeps the history so a test can see every step.
@@ -54,6 +54,7 @@ Time ranges are half open, `[from, to)`: a stay or assignment that ends at 10:00
 - Migrations are written by hand in SQL (`<revision>_<name>.sql` next to the Python file), not generated from models. The schema relies on named partial indexes and exclusion constraints, and writing them by hand keeps each one exactly as tested.
 - Revision `0001` is the draft as checked below. On 2026-11-12, `pg_dump --schema-only` of a database built from the draft and of one built by `alembic upgrade head` differed only in the random `\restrict` token pg_dump adds to each dump.
 - Revision `0002` allows a bed stay that ends at the moment it starts, after F-01 in `findings.md`.
+- Revision `0003` does the same for device assignments, after F-02.
 - `tests/test_migrations.py` runs on every test run: upgrade creates exactly the 17 tables, the 31 checks of `db/schema-checks.sql` pass on the migrated database, and downgrade to base removes every table and type so that upgrade works again.
 
 ## How it was checked
