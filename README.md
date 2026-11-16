@@ -4,7 +4,7 @@ A simulated wireless patient monitoring system for hospital wards, built to prac
 
 > PulseGuard is not a medical device and must never be used to monitor a real patient. All data is synthetic. It is not affiliated with or endorsed by any manufacturer.
 
-Status: backend skeleton with the health endpoint and the first migration. Design documents: [`docs/product-research.md`](docs/product-research.md), [`docs/prd.md`](docs/prd.md), [`docs/risk-analysis.md`](docs/risk-analysis.md), [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/database.md`](docs/database.md), [`docs/api.md`](docs/api.md) with [`docs/openapi.yaml`](docs/openapi.yaml) and the decisions in [`docs/adr/`](docs/adr/).
+Status: backend with the health endpoint and the sessions module (register patients, admit, discharge). Token login arrives in d244; until then every endpoint except health answers 401, and the tests act as fixed users. Design documents: [`docs/product-research.md`](docs/product-research.md), [`docs/prd.md`](docs/prd.md), [`docs/risk-analysis.md`](docs/risk-analysis.md), [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/database.md`](docs/database.md), [`docs/api.md`](docs/api.md) with [`docs/openapi.yaml`](docs/openapi.yaml), the decisions in [`docs/adr/`](docs/adr/) and the defects found in [`docs/findings.md`](docs/findings.md).
 
 ## Run with Docker
 
