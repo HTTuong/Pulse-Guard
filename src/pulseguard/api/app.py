@@ -3,10 +3,12 @@
 from fastapi import FastAPI
 from sqlalchemy import Engine
 
+from pulseguard import errors
 from pulseguard.api import health
 from pulseguard.clock import Clock, SystemClock
 from pulseguard.config import Settings
-from pulseguard.db import make_engine
+from pulseguard.db import make_engine, make_sessionmaker
+from pulseguard.sessions.router import router as sessions_router
 
 API_PREFIX = "/api/v1"
 
@@ -23,6 +25,9 @@ def create_app(
         summary="Simulated ward monitoring system for practising testing. Not a medical device.",
     )
     app.state.engine = engine or make_engine(settings.database_url, settings.db_check_timeout)
+    app.state.sessionmaker = make_sessionmaker(app.state.engine)
     app.state.clock = clock or SystemClock()
+    errors.install(app)
     app.include_router(health.router, prefix=API_PREFIX)
+    app.include_router(sessions_router, prefix=API_PREFIX)
     return app
