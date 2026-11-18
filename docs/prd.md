@@ -2,7 +2,7 @@
 
 What PulseGuard must do, as requirements with ids and measurable acceptance criteria. Every later test names the requirement it checks, so a requirement without a test, or a test without a requirement, shows up in the traceability matrix.
 
-Last updated: 2026-11-12. Based on `product-research.md`.
+Last updated: 2026-11-18. Based on `product-research.md`.
 
 > PulseGuard is a simulated system for practising testing. It is not a medical device. Thresholds and clinical rules below are design assumptions, taken from public guidance where possible, not clinical advice.
 
@@ -54,7 +54,7 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 
 **REQ-SES-03 (Must)** A nurse discharges a patient, which closes the session.
 - The session becomes CLOSED with who and when; all its devices are unassigned (REQ-DEV-03); its open alarms become RESOLVED with the reason "discharged".
-- A reading for a closed session is refused and never shown as current.
+- A reading measured after the discharge is refused. A reading measured before it, but arriving later (for example from a monitor's buffer, REQ-CON-03), is kept in the closed session's history and never shown as current. Clarified in d242: the first wording refused both, which would lose buffered readings.
 
 **REQ-SES-04 (Must)** A patient moves to another bed or unit without losing the session's history.
 - The session keeps its id, measurements and alarms; the move is recorded; staff of the new unit see it, staff of the old unit no longer do.

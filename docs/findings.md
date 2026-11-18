@@ -26,3 +26,11 @@ Defects and surprises found while building and testing, with the evidence and wh
 
 - In d241 the session row lock that keeps one sensor of each kind per session was removed on purpose. The test with 10 parallel assignments still passed in 1 of 5 runs.
 - The test now repeats the race on 5 sessions. Without the lock it failed 10 of 10 runs; with the lock it passed 5 of 5.
+
+## F-03: Two requirements disagreed about readings of a closed session
+
+- Found: 2026-11-18, d242, while writing the test for a discharge during a backend outage.
+- REQ-SES-03 said a reading for a closed session is refused. REQ-CON-03 says no buffered reading may be lost. A monitor that buffered readings measured at 10:00 and delivers them after a discharge at 10:05 cannot meet both.
+- Decision: readings measured before the discharge are kept in the closed session's history and never shown as current; readings measured after it are refused with `NO_SESSION`. REQ-SES-03 now says so.
+- Test: `test_after_discharge_only_readings_measured_before_it_are_kept`.
+- Kind: a requirements defect, found before any code depended on the old wording.
