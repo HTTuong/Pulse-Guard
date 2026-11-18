@@ -3,8 +3,9 @@ classes only describe it, so they never create or change a table."""
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Text
+from sqlalchemy import ForeignKey, Numeric, Text
 from sqlalchemy.dialects.postgresql import ENUM, TIMESTAMP, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -110,3 +111,28 @@ class DeviceConnection(Base):
     )
     since: Mapped[datetime] = mapped_column(Timestamp)
     last_seen_at: Mapped[datetime] = mapped_column(Timestamp)
+
+
+PARAMETERS = ("PR", "SPO2", "RR")
+
+
+class Measurement(Base):
+    __tablename__ = "measurement"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitoring_session.id"))
+    device_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("device.id"))
+    seq: Mapped[int]
+    parameter: Mapped[str] = mapped_column(ENUM(*PARAMETERS, name="parameter", create_type=False))
+    value: Mapped[Decimal] = mapped_column(Numeric(5, 1))
+    measured_at: Mapped[datetime] = mapped_column(Timestamp)
+    received_at: Mapped[datetime] = mapped_column(Timestamp)
+
+
+class ReadingRejection(Base):
+    __tablename__ = "reading_rejection"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_serial: Mapped[str] = mapped_column(Text)
+    seq: Mapped[int | None]
+    code: Mapped[str] = mapped_column(Text)
+    detail: Mapped[str | None] = mapped_column(Text)
+    received_at: Mapped[datetime] = mapped_column(Timestamp)

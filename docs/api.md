@@ -2,7 +2,7 @@
 
 Conventions of the backend HTTP API. The endpoints and their schemas are in `openapi.yaml` (OpenAPI 3.1, draft); each operation lists the requirements it serves in `x-requirements`.
 
-Last updated: 2026-11-12. `openapi.yaml` passes `openapi-spec-validator` 0.9.0 (23 paths, 25 operations); a broken `$ref` put in on purpose was caught.
+Last updated: 2026-11-18. `openapi.yaml` passes `openapi-spec-validator` 0.9.0 (23 paths, 25 operations); a broken `$ref` put in on purpose was caught.
 
 ## Base and clients
 
@@ -57,7 +57,12 @@ Errors use Problem Details (RFC 9457), content type `application/problem+json`. 
 - A whole batch is refused only when the request itself is wrong (400) or too large (413); then nothing is stored.
 - Sending the same batch again is safe: stored readings come back as duplicates (REQ-MEA-03). A reading with the same seq and other content is refused with `SEQ_CONFLICT` (P-14 in `protocol.md`, R-ORD-04).
 - The monitor removes a reading from its buffer only when it appears in `stored`, `duplicates` or `refused`. On a timeout or 5xx it keeps the batch and sends it again (REQ-CON-02, REQ-CON-03).
-- Status events carry `event_seq`, per monitor and never reused, so they are idempotent too.
+- Checks of one reading, in this order, each with its code: the sensor is known (`UNKNOWN_DEVICE`), not retired (`DEVICE_RETIRED`), measures this parameter (`WRONG_PARAMETER`), uses its unit (`BAD_UNIT`), has a measured time with an offset inside the window (`BAD_TIME`), has a plausible value (`OUT_OF_RANGE`), was assigned to a session at the measured time (`NO_SESSION`), and the calling monitor was in that same session at that time (`NOT_PAIRED`).
+- A retired sensor's readings are refused even when they were measured while it was still in use.
+- Values are kept with one decimal, rounded half away from zero as PostgreSQL does. Ranges and duplicates are judged on that stored value: 72.04 is stored as 72.0 and is a duplicate of 72.0; 300.05 becomes 300.1 and is out of range.
+- `NaN`, `Infinity` and `-Infinity` are read by Python's JSON parser without an error, and are refused as `OUT_OF_RANGE`.
+- At the exact moment a sensor moves, its readings belong to the new session (ranges are half open).
+- Status events carry `event_seq`, per monitor and never reused, so they are idempotent too. Until they are handled with technical alarms, a batch with any event is refused with 400 rather than storing the readings and dropping the events in silence.
 - `GET /ingest/pairings` tells the monitor which sensors it may accept, and when others were unpaired (P-09, P-10 in `protocol.md`). The monitor polls it every 5 s.
 
 ## Who may call what

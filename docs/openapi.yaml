@@ -808,6 +808,7 @@ components:
               unit: { enum: ["beats/min", "%", "breaths/min"] }
               measured_at: { $ref: "#/components/schemas/Instant" }
         events:
+          description: Refused with 400 when not empty, until status events are handled with technical alarms
           type: array
           maxItems: 100
           items:
@@ -833,7 +834,7 @@ components:
               - type: object
                 required: [code]
                 properties:
-                  code: { enum: [NOT_PAIRED, UNKNOWN_DEVICE, DEVICE_RETIRED, OUT_OF_RANGE, BAD_UNIT, BAD_TIME, SEQ_CONFLICT, NO_SESSION] }
+                  code: { enum: [NOT_PAIRED, UNKNOWN_DEVICE, DEVICE_RETIRED, WRONG_PARAMETER, OUT_OF_RANGE, BAD_UNIT, BAD_TIME, SEQ_CONFLICT, NO_SESSION] }
                   detail: { type: string }
         events_stored: { type: array, items: { type: integer } }
     ItemRef:
