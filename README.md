@@ -4,19 +4,29 @@ A simulated wireless patient monitoring system for hospital wards, built to prac
 
 > PulseGuard is not a medical device and must never be used to monitor a real patient. All data is synthetic. It is not affiliated with or endorsed by any manufacturer.
 
-Status: backend with the health endpoint, the sessions module (register patients, admit, discharge), the device module (register, list, assign, unassign, retire, pairing), measurement ingestion for patient monitors, which authenticate with their own credential, and the alarm engine (NEWS2 default limits, debounce, escalation, latching, acknowledgement). Token login for staff arrives in d244; until then every staff endpoint answers 401, and the tests act as fixed users. Design documents: [`docs/product-research.md`](docs/product-research.md), [`docs/prd.md`](docs/prd.md), [`docs/risk-analysis.md`](docs/risk-analysis.md), [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/database.md`](docs/database.md), [`docs/api.md`](docs/api.md) with [`docs/openapi.yaml`](docs/openapi.yaml), the decisions in [`docs/adr/`](docs/adr/) and the defects found in [`docs/findings.md`](docs/findings.md).
+Status: backend with the health endpoint, the sessions module (register patients, admit, discharge), the device module (register, list, assign, unassign, retire, pairing), measurement ingestion for patient monitors, which authenticate with their own credential, the alarm engine (NEWS2 default limits, debounce, escalation, latching, acknowledgement), and staff login with roles and units. Staff log in with email and password and get a token for 8 hours; patient monitors use their own credential. Design documents: [`docs/product-research.md`](docs/product-research.md), [`docs/prd.md`](docs/prd.md), [`docs/risk-analysis.md`](docs/risk-analysis.md), [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/database.md`](docs/database.md), [`docs/api.md`](docs/api.md) with [`docs/openapi.yaml`](docs/openapi.yaml), the decisions in [`docs/adr/`](docs/adr/) and the defects found in [`docs/findings.md`](docs/findings.md).
 
 ## Run with Docker
 
 Needs Docker with Compose.
 
 ```bash
-cp .env.example .env                    # then change POSTGRES_PASSWORD
+cp .env.example .env                    # then set POSTGRES_PASSWORD and PULSEGUARD_JWT_SECRET
 docker compose up --build -d
 curl http://localhost:8000/api/v1/health
 ```
 
 The backend applies the migrations when it starts, then serves the API on port 8000. PostgreSQL 17 listens on port 5434 on the host.
+
+A fresh database has no users. Create a unit and the first admin (fake data only):
+
+```bash
+docker compose exec backend python -m pulseguard.access.cli create-unit W1 "Ward 1" --beds 12
+docker compose exec -e PULSEGUARD_NEW_PASSWORD='a long fake password' backend \
+  python -m pulseguard.access.cli create-user admin@example.com "Admin" ADMIN --units W1
+curl -s -X POST http://localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"email": "admin@example.com", "password": "a long fake password"}'
+```
 
 ## Develop locally
 

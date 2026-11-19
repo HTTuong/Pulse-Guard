@@ -20,6 +20,9 @@ services:
     build: .
     environment:
       PULSEGUARD_DATABASE_URL: postgresql+psycopg://pulseguard:${POSTGRES_PASSWORD:-pulseguard}@db:5432/pulseguard
+      # Empty unless set in .env; the backend then refuses to start with a clear message. Not `:?`,
+      # which would also stop `docker compose up -d db` (Project 2).
+      PULSEGUARD_JWT_SECRET: ${PULSEGUARD_JWT_SECRET:-}
     ports:
       - "8000:8000"
     depends_on:
