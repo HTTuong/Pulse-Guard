@@ -34,3 +34,9 @@ Defects and surprises found while building and testing, with the evidence and wh
 - Decision: readings measured before the discharge are kept in the closed session's history and never shown as current; readings measured after it are refused with `NO_SESSION`. REQ-SES-03 now says so.
 - Test: `test_after_discharge_only_readings_measured_before_it_are_kept`.
 - Kind: a requirements defect, found before any code depended on the old wording.
+
+## Note: two layers make one mutant harmless (d243)
+
+- The ingest step runs only newly stored readings through the alarm engine, so a resent batch cannot raise an alarm twice. Removing that filter on purpose did not fail any test.
+- The reason: a duplicate is never newer than the last reading the engine judged, and the engine skips such readings by itself. The mutant is equivalent by design, as the open session check in d240 was: the filter saves work, the engine's own order check keeps it correct.
+- The race lesson of d241 came back: without the alarm row lock, two nurses acknowledging at once still passed 1 run in 8. The test now has 10 nurses and 3 alarms in turn; without the lock it failed 10 of 10 runs, with it it passed 5 of 5.

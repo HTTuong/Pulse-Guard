@@ -109,6 +109,7 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 
 **REQ-ALM-02 (Must)** A condition raises one alarm, not one per reading.
 - 60 s of a pulse of 140 give exactly 1 alarm. If it gets worse, the existing alarm's priority rises from medium to high, still 1 alarm.
+- Decided in d243: an escalated alarm becomes ACTIVE again even if it was acknowledged, so the worse value is seen by a person. A high alarm is never lowered back to medium.
 
 **REQ-ALM-03 (Must)** An alarm moves ACTIVE → ACKNOWLEDGED → RESOLVED; each change records who, when and why.
 - Acknowledging requires a nurse or physician of the patient's unit; an acknowledged alarm stays visible until resolved.
@@ -117,6 +118,7 @@ From the NEWS2 bands ([NWAS](https://www.nwas.nhs.uk/publications/news2-national
 **REQ-ALM-04 (Must)** High priority alarms latch; medium priority alarms do not.
 - A high priority alarm whose value returns to normal stays ACTIVE, marked "condition cleared", until acknowledged; then it becomes RESOLVED.
 - A medium priority alarm resolves by itself after its value has been back out of the alarm band for 10 s, marked "resolved without acknowledgement".
+- Decided in d243: "returns to normal" means out of the alarm band for 10 s, for both priorities, so a single normal reading in a run of bad ones does not count. An alarm that was already acknowledged resolves by itself after those 10 s. A latched alarm whose condition comes back stays the same alarm.
 
 **REQ-ALM-05 (Must)** A technical alarm SENSOR_LOST (medium priority) is raised when a sensor of an open session sends nothing for 15 s, and MONITOR_LOST (high priority) when the patient monitor sends no heartbeat for 15 s.
 - It resolves after 15 s of continuous data from that device.

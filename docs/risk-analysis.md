@@ -2,7 +2,7 @@
 
 Quality risks of PulseGuard and how each one maps to requirements and planned tests: **Risk** → **Requirement** → **Test group**. It is written before any code exists, so the tests are planned from risks rather than from features. Each entry will be updated with evidence from real test runs.
 
-Last updated: 2026-11-12. Based on `product-research.md` and `prd.md`.
+Last updated: 2026-11-19. Based on `product-research.md` and `prd.md`.
 
 > PulseGuard is a simulated system for practising testing. It is not a medical device. "Patient safety" below means the harm the same failure would cause in a real product; it is the yardstick for ordering the tests.
 
@@ -41,7 +41,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 | R-STALE-01 | An old value is shown as current after a sensor stops, so a patient looks stable when nothing is measured | Critical | High | P1 | REQ-VIEW-01, REQ-CON-05, REQ-ALM-05 | U, SIM, E2E |
 | R-STALE-02 | A closed session's values or alarms are still shown as current | High | Medium | P2 | REQ-SES-03, REQ-ALM-08 | API, E2E |
 | R-ORD-01 | Duplicate readings after a resend are stored twice, inflate the history or raise a second alarm | Medium | High | P2 | REQ-MEA-03, REQ-CON-02, REQ-ALM-02 | U, PR, SIM |
-| R-ORD-02 | Readings arriving out of order make an old value the current one, or make the alarm engine raise or resolve on the wrong data | High | High | P1 | REQ-MEA-04, REQ-ALM-01, REQ-ALM-04 | U, PB, SIM |
+| R-ORD-02 | Readings arriving out of order make an old value the current one, or make the alarm engine raise or resolve on the wrong data | High | High | P1 | REQ-MEA-04, REQ-ALM-01, REQ-ALM-04 | U, PB, SIM. d243: the engine decides in measured order and skips a reading older than one it has already judged; such a reading is stored but raises nothing, so the monitor must forward in measured order (REQ-CON-03) |
 | R-ORD-03 | Device clock skew puts readings in the future or far past, so ordering and staleness are wrong | High | Medium | P2 | REQ-MEA-05, REQ-VIEW-01 | U, SIM |
 | R-ORD-04 | A sensor restarts its sequence numbers, so its new readings are taken for duplicates and silently thrown away | Critical | Medium | P1 | REQ-MEA-03 | U, PR, SIM. Found while writing `protocol.md` (P-14): a duplicate needs the same content, not only the same seq |
 | R-ALM-01 | A high priority condition does not raise an alarm, or raises it after more than the debounce time | Critical | Medium | P1 | REQ-ALM-01, REQ-NFR-01 | U (boundaries at 4, 5, 6 s), PB, SIM, LOAD |
