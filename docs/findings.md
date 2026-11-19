@@ -40,3 +40,9 @@ Defects and surprises found while building and testing, with the evidence and wh
 - The ingest step runs only newly stored readings through the alarm engine, so a resent batch cannot raise an alarm twice. Removing that filter on purpose did not fail any test.
 - The reason: a duplicate is never newer than the last reading the engine judged, and the engine skips such readings by itself. The mutant is equivalent by design, as the open session check in d240 was: the filter saves work, the engine's own order check keeps it correct.
 - The race lesson of d241 came back: without the alarm row lock, two nurses acknowledging at once still passed 1 run in 8. The test now has 10 nurses and 3 alarms in turn; without the lock it failed 10 of 10 runs, with it it passed 5 of 5.
+
+## Note: two weak tests found by mutants (d244)
+
+- A token signed with HS512 was refused by its test, but because it lacked claims, not because of its algorithm. A mutant that allowed HS512 survived. The test now signs a complete, valid set of claims with HS256 (accepted) and with HS512 (refused).
+- No test deactivated a user without raising `token_version`. Since the API always raises it, a mutant that ignored the `active` flag survived. A deactivation made straight in the database, as in an emergency, would have left the token working. The test now does exactly that.
+- Both are tests that passed for the wrong reason. A green test only proves what it checks; mutants show what it does not.

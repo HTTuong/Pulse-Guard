@@ -59,6 +59,7 @@ Likelihood is an estimate made before the code exists: High where the behavior d
 | R-PROTO-01 | A malformed, partial or unknown version message crashes the connection or the server | High | High | P1 | REQ-CON-01 | PR |
 | R-PROTO-02 | A reading from an unpaired, unknown or retired device is accepted | High | Medium | P2 | REQ-DEV-04, REQ-DEV-05, REQ-ACC-03 | PR, API |
 | R-PROTO-03 | A sensor sends another paired sensor's serial number and its readings are accepted for that patient | High | Low | P3 | REQ-ACC-03, REQ-DEV-05 | PR. Known gap of protocol version 1: sensors are identified by serial only (`protocol.md`, open points) |
+| R-AUTH-01 | Passwords are guessed by trying many logins; nothing limits the attempts yet | High | Medium | P2 | REQ-ACC-01 | API. Not built in d244: a limit per email and per address is planned; until then the risk is open |
 | R-INPUT-01 | An impossible value, wrong unit or missing field is stored as a measurement | Medium | Low | P3 | REQ-MEA-01, REQ-MEA-02 | U, PR |
 | R-PERF-01 | Under 50 sessions the alarm latency grows or readings are dropped | High | Medium | P2 | REQ-NFR-01, REQ-NFR-02 | LOAD |
 | R-TEST-01 | Timing based tests are flaky, so real failures are dismissed as noise | Medium | High | P2 | REQ-NFR-03 | All groups: an injectable clock and seeded simulator instead of real waiting |
