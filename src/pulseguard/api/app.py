@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from sqlalchemy import Engine
 
 from pulseguard import errors
+from pulseguard.alarms.router import router as alarms_router
 from pulseguard.api import health
 from pulseguard.clock import Clock, SystemClock
 from pulseguard.config import Settings
@@ -34,4 +35,5 @@ def create_app(
     app.include_router(sessions_router, prefix=API_PREFIX)
     app.include_router(devices_router, prefix=API_PREFIX)
     app.include_router(ingest_router, prefix=API_PREFIX)
+    app.include_router(alarms_router, prefix=API_PREFIX)
     return app

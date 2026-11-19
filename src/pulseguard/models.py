@@ -136,3 +136,78 @@ class ReadingRejection(Base):
     code: Mapped[str] = mapped_column(Text)
     detail: Mapped[str | None] = mapped_column(Text)
     received_at: Mapped[datetime] = mapped_column(Timestamp)
+
+
+class SessionLimit(Base):
+    __tablename__ = "session_limit"
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("monitoring_session.id"), primary_key=True
+    )
+    parameter: Mapped[str] = mapped_column(
+        ENUM(*PARAMETERS, name="parameter", create_type=False), primary_key=True
+    )
+    high_low: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))
+    medium_low: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))
+    medium_high: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))
+    high_high: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))
+    changed_at: Mapped[datetime] = mapped_column(Timestamp)
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+
+
+ALARM_STATES = ("ACTIVE", "ACKNOWLEDGED", "RESOLVED")
+PRIORITIES = ("MEDIUM", "HIGH")
+
+
+class Alarm(Base):
+    __tablename__ = "alarm"
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitoring_session.id"))
+    kind: Mapped[str] = mapped_column(
+        ENUM("PHYSIOLOGICAL", "TECHNICAL", name="alarm_kind", create_type=False)
+    )
+    code: Mapped[str] = mapped_column(Text)
+    parameter: Mapped[str | None] = mapped_column(
+        ENUM(*PARAMETERS, name="parameter", create_type=False)
+    )
+    device_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("device.id"))
+    priority: Mapped[str] = mapped_column(
+        ENUM(*PRIORITIES, name="alarm_priority", create_type=False)
+    )
+    state: Mapped[str] = mapped_column(ENUM(*ALARM_STATES, name="alarm_state", create_type=False))
+    condition_cleared: Mapped[bool]
+    escalated: Mapped[bool]
+    started_at: Mapped[datetime] = mapped_column(Timestamp)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    resolved_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    resolution: Mapped[str | None] = mapped_column(Text)
+
+
+class AlarmEvent(Base):
+    __tablename__ = "alarm_event"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alarm_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("alarm.id"))
+    at: Mapped[datetime] = mapped_column(Timestamp)
+    from_state: Mapped[str | None] = mapped_column(
+        ENUM(*ALARM_STATES, name="alarm_state", create_type=False)
+    )
+    to_state: Mapped[str] = mapped_column(
+        ENUM(*ALARM_STATES, name="alarm_state", create_type=False)
+    )
+    priority: Mapped[str] = mapped_column(
+        ENUM(*PRIORITIES, name="alarm_priority", create_type=False)
+    )
+    by_user: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    reason: Mapped[str] = mapped_column(Text)
+
+
+class AlarmEngineState(Base):
+    __tablename__ = "alarm_engine_state"
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("monitoring_session.id"), primary_key=True
+    )
+    code: Mapped[str] = mapped_column(Text, primary_key=True)
+    last_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    abnormal_since: Mapped[datetime | None] = mapped_column(Timestamp)
+    high_since: Mapped[datetime | None] = mapped_column(Timestamp)
+    normal_since: Mapped[datetime | None] = mapped_column(Timestamp)

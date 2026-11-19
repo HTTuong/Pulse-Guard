@@ -10,6 +10,7 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from pulseguard.alarms import service as alarms
 from pulseguard.clock import Clock, to_wire
 from pulseguard.devices.assignments import pairings_for_monitor, session_of_device_at
 from pulseguard.errors import ApiError, forbidden
@@ -173,6 +174,15 @@ def ingest(db: Session, monitor: Device, clock: Clock, batch: BatchIn) -> BatchR
                 **ref.model_dump(), code="SEQ_CONFLICT", detail="Same seq with other content"
             )
             kinds[c.position] = "refused"
+
+    # Only readings stored now go through the alarm engine: a duplicate was seen the first time.
+    by_parameter: dict[tuple[uuid.UUID, str], list[tuple[datetime, Decimal]]] = {}
+    for c in candidates:
+        if (c.device_id, c.reading.seq) in inserted:
+            group = (c.session_id, str(c.reading.parameter))
+            by_parameter.setdefault(group, []).append((c.measured_at, c.value))
+    for (session_id, parameter), readings in sorted(by_parameter.items()):
+        alarms.process_readings(db, session_id, parameter, readings)
 
     for position in sorted(outcome):
         item = outcome[position]

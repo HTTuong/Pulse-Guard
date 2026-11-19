@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from pulseguard.access.actor import Actor, Role
+from pulseguard.alarms import service as alarms
 from pulseguard.clock import Clock, to_wire
 from pulseguard.devices import assignments
 from pulseguard.errors import CONSTRAINT_CODES, ApiError, not_found
@@ -122,6 +123,7 @@ def admit(db: Session, actor: Actor, clock: Clock, data: AdmissionInput) -> Sess
     try:
         db.flush()
         db.add(BedStay(session_id=session.id, bed_id=bed.id, from_at=now))
+        alarms.add_default_limits(db, session.id, now)
         db.commit()
     except IntegrityError as error:
         # A parallel admission got there first; the database refused this one (R-ISO-02).
@@ -145,8 +147,8 @@ def get_session(db: Session, actor: Actor, session_id: uuid.UUID) -> SessionOut:
 
 
 def discharge(db: Session, actor: Actor, clock: Clock, session_id: uuid.UUID) -> SessionOut:
-    """REQ-SES-03: closes the session, frees the bed and unassigns every device in one
-    transaction. Resolving open alarms (d243) joins this transaction when that module exists."""
+    """REQ-SES-03: closes the session, frees the bed, unassigns every device and resolves every
+    open alarm, in one transaction."""
     session = load_for_staff(db, actor, session_id)
     actor.require_role(Role.NURSE)
     if session.status != "OPEN":
@@ -163,5 +165,6 @@ def discharge(db: Session, actor: Actor, clock: Clock, session_id: uuid.UUID) ->
     session.discharged_by = actor.user_id
     stay.to_at = ended
     assignments.unassign_all(db, session.id, ended, actor.user_id)
+    alarms.resolve_on_discharge(db, session.id, ended, actor.user_id)
     db.commit()
     return session_out(db, session)

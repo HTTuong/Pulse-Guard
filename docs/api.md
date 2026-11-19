@@ -65,6 +65,14 @@ Errors use Problem Details (RFC 9457), content type `application/problem+json`. 
 - Status events carry `event_seq`, per monitor and never reused, so they are idempotent too. Until they are handled with technical alarms, a batch with any event is refused with 400 rather than storing the readings and dropping the events in silence.
 - `GET /ingest/pairings` tells the monitor which sensors it may accept, and when others were unpaired (P-09, P-10 in `protocol.md`). The monitor polls it every 5 s.
 
+## Alarms
+
+- `POST /alarms/{id}/acknowledge`: nurses and physicians of the patient's unit. An ACTIVE alarm becomes ACKNOWLEDGED; an ACTIVE alarm whose condition has already cleared becomes RESOLVED (`ACKNOWLEDGED_AFTER_CLEAR`). Anything else is 409 `ALARM_NOT_ACTIVE`. The alarm row is locked, so of several people pressing at once exactly one succeeds.
+- `GET /alarms/{id}` returns the alarm with its full history: every change, its time, and the user when a person made it.
+- `GET /sessions/{id}/limits` returns the session's limits; admission writes the defaults.
+- Engine changes are timed by the measured time of the reading that caused them; changes made by people are timed by the server clock.
+- Not built yet: changing limits (REQ-ALM-06), escalation after 120 s (REQ-ALM-07), technical alarms (REQ-ALM-05) and the list of open alarms for the central view.
+
 ## Who may call what
 
 | Endpoint group | Nurse | Physician | Technician | Admin | Patient monitor |

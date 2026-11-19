@@ -15,6 +15,7 @@ EXPECTED_TABLES = {
     "unit", "bed", "app_user", "user_unit", "patient", "monitoring_session", "bed_stay",
     "device", "device_assignment", "device_connection", "measurement", "reading_rejection",
     "absolute_limit", "session_limit", "session_limit_change", "alarm", "alarm_event",
+    "alarm_engine_state",
 }  # fmt: skip
 
 

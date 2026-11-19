@@ -2,7 +2,7 @@
 
 The PostgreSQL schema and the rules it enforces by itself. Since d239 the Alembic migrations in `migrations/versions/` are the source of truth. `db/schema-draft.sql` is the design they started from and is no longer updated.
 
-Last updated: 2026-11-16 (d241: migration 0003).
+Last updated: 2026-11-19 (d243: migration 0004).
 
 ## Tables
 
@@ -45,7 +45,7 @@ Time ranges are half open, `[from, to)`: a stay or assignment that ends at 10:00
 
 - **Assignments are history, not a column on the device.** A late reading is matched to the session its device had at the measured time, with `tstzrange(assigned_at, unassigned_at) @> measured_at` (REQ-MEA-06).
 - **Session of a reading is stored on the reading.** Resolved once at ingest, so a later move or reassignment cannot change whose reading it was.
-- **Alarm engine state after a restart is rebuilt, not stored.** Open alarms are rows in `alarm`; a condition still in its debounce time is rebuilt by replaying the last 60 s of measurements of each open session through the engine. This keeps one source of truth and is tested by restarting the backend in the middle of a debounce (R-REC-04).
+- **Alarm engine state is stored, in the same transaction as the readings.** Changed in d243 from the first plan, which rebuilt the state after a restart by replaying the last 60 s of measurements. The state of one side of one parameter is four timestamps (`alarm_engine_state`); storing them is simpler than a replay that must handle gaps and runs longer than its window, and a restart in the middle of a debounce loses nothing. Tested by sending 3 s of pulse 140, starting a new backend process and sending 3 s more: the alarm comes at 5 s (R-REC-04).
 - **Closed sessions are not deleted.** After 6 days they are hidden from lists by the API (REQ-SES-05); deleting synthetic data is not worth the risk of a cascade, which deleted the admin user in Project 2's demo database.
 - **Values are `numeric(5,1)`.** Exact decimal, so a band edge such as 93 compares exactly, which a float might not.
 
@@ -55,6 +55,7 @@ Time ranges are half open, `[from, to)`: a stay or assignment that ends at 10:00
 - Revision `0001` is the draft as checked below. On 2026-11-12, `pg_dump --schema-only` of a database built from the draft and of one built by `alembic upgrade head` differed only in the random `\restrict` token pg_dump adds to each dump.
 - Revision `0002` allows a bed stay that ends at the moment it starts, after F-01 in `findings.md`.
 - Revision `0003` does the same for device assignments, after F-02.
+- Revision `0004` adds `alarm_engine_state`, see Decisions.
 - `tests/test_migrations.py` runs on every test run: upgrade creates exactly the 17 tables, the 31 checks of `db/schema-checks.sql` pass on the migrated database, and downgrade to base removes every table and type so that upgrade works again.
 
 ## How it was checked
