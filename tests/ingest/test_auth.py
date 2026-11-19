@@ -47,11 +47,13 @@ def test_a_retired_monitor_is_refused_at_once(ward: Ward) -> None:
 
 
 def test_a_user_route_does_not_accept_a_device_credential(ward: Ward) -> None:
+    """403, as docs/api.md says. Changed in d244 from 401: before staff login existed every staff
+    route answered 401 to anything, so the first version of this test could only expect that."""
     bed = equipped_bed(ward, 1, sensors=False)
     response = ward.client(None).get(
         f"/api/v1/sessions/{bed.session}", headers={"Authorization": f"Bearer {bed.credential}"}
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
 
 
 def test_pairings_list_the_sensors_of_the_monitor(ward: Ward) -> None:

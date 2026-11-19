@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from sqlalchemy import Engine
 
 from pulseguard import errors
+from pulseguard.access.router import router as access_router
+from pulseguard.access.tokens import MIN_SECRET_LENGTH
 from pulseguard.alarms.router import router as alarms_router
 from pulseguard.api import health
 from pulseguard.clock import Clock, SystemClock
@@ -22,16 +24,22 @@ def create_app(
     clock: Clock | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
+    if not settings.jwt_secret or len(settings.jwt_secret) < MIN_SECRET_LENGTH:
+        raise RuntimeError(
+            f"PULSEGUARD_JWT_SECRET must be set to at least {MIN_SECRET_LENGTH} characters"
+        )
     app = FastAPI(
         title="PulseGuard API",
         version="0.1.0",
         summary="Simulated ward monitoring system for practising testing. Not a medical device.",
     )
+    app.state.settings = settings
     app.state.engine = engine or make_engine(settings.database_url, settings.db_check_timeout)
     app.state.sessionmaker = make_sessionmaker(app.state.engine)
     app.state.clock = clock or SystemClock()
     errors.install(app)
     app.include_router(health.router, prefix=API_PREFIX)
+    app.include_router(access_router, prefix=API_PREFIX)
     app.include_router(sessions_router, prefix=API_PREFIX)
     app.include_router(devices_router, prefix=API_PREFIX)
     app.include_router(ingest_router, prefix=API_PREFIX)

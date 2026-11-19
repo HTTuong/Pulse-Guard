@@ -18,6 +18,10 @@ from sqlalchemy.engine import make_url
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Every app built in the tests signs tokens with this fixed, fake secret.
+TEST_JWT_SECRET = "test-only-secret-not-for-production-0123456789"
+os.environ.setdefault("PULSEGUARD_JWT_SECRET", TEST_JWT_SECRET)
+
 
 class FakeClock:
     """A clock a test sets and moves by hand."""

@@ -64,6 +64,72 @@ paths:
                   role: { $ref: "#/components/schemas/Role" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: The caller, with role and units as they are now
+      x-requirements: [REQ-ACC-02]
+      responses:
+        "200":
+          description: The caller
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user_id, role, unit_ids]
+                properties:
+                  user_id: { type: string, format: uuid }
+                  role: { $ref: "#/components/schemas/Role" }
+                  unit_ids: { type: array, items: { type: string, format: uuid } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /users:
+    post:
+      tags: [admin]
+      summary: Create a user (admin)
+      x-requirements: [REQ-ACC-02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /users/{user_id}:
+    patch:
+      tags: [admin]
+      summary: Change a user; deactivation and a role change stop their tokens (admin)
+      x-requirements: [REQ-ACC-01, REQ-ACC-02]
+      parameters:
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                active: { type: boolean }
+                role: { $ref: "#/components/schemas/Role" }
+                unit_codes: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /units:
     get:
       tags: [admin]
@@ -603,6 +669,26 @@ components:
     DeviceKind: { enum: [PATIENT_MONITOR, PULSE_OXIMETER, RESPIRATION] }
     DeviceStatus: { enum: [AVAILABLE, ASSIGNED, RETIRED] }
     AlarmState: { enum: [ACTIVE, ACKNOWLEDGED, RESOLVED] }
+    UserInput:
+      type: object
+      required: [email, display_name, role, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email }
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        role: { $ref: "#/components/schemas/Role" }
+        password: { type: string, minLength: 12 }
+        unit_codes: { type: array, items: { type: string } }
+    User:
+      type: object
+      required: [id, email, display_name, role, active, unit_codes]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        display_name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        active: { type: boolean }
+        unit_codes: { type: array, items: { type: string } }
     Problem:
       type: object
       required: [type, title, status, code]

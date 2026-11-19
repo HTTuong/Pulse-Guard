@@ -9,6 +9,12 @@ Last updated: 2026-11-18. `openapi.yaml` passes `openapi-spec-validator` 0.9.0 (
 - Base path `/api/v1`. A breaking change gets `/api/v2`; adding a field is not breaking, so clients must ignore fields they do not know.
 - Staff use a user token from `POST /auth/login` (JWT, at most 8 hours, REQ-ACC-01). The token carries the user's `token_version`; deactivating a user or changing their role raises it, so old tokens stop working at once (Project 2, R-AUTH-01 there).
 - Patient monitors use their own credential, issued once at registration, and may only call `/ingest/*` (REQ-ACC-03). A user token on `/ingest/*`, or a device token anywhere else, gets 403.
+- The header must be exactly `Authorization: Bearer <token>`; another scheme, a second word or an extra space is 401.
+- A token is HS256 with issuer `pulseguard` and audience `pulseguard-staff`, and holds only the user id and `token_version`. Role and units are read from the database on every request, so moving a nurse to another unit applies at once, without a new token. A deactivated user is refused even when the deactivation was made in the database without raising `token_version`.
+- Expiry, issue time and the 8 hour cap are checked against the server clock; a token that claims a longer life, or was issued in the future, is refused.
+- `POST /auth/login` answers 401 with the same body for an unknown email, a wrong password and a deactivated user, and runs the password hash for an unknown email too, so the time of the answer does not tell which emails exist. Emails are compared without case.
+- The backend refuses to start without `PULSEGUARD_JWT_SECRET` of at least 32 characters.
+- Not built yet: limits on login attempts (R-AUTH-01 in `risk-analysis.md`).
 
 ## Times
 
@@ -71,6 +77,7 @@ Errors use Problem Details (RFC 9457), content type `application/problem+json`. 
 - `GET /alarms/{id}` returns the alarm with its full history: every change, its time, and the user when a person made it.
 - `GET /sessions/{id}/limits` returns the session's limits; admission writes the defaults.
 - Engine changes are timed by the measured time of the reading that caused them; changes made by people are timed by the server clock.
+- `GET /auth/me` returns the caller's id, role and units. Admins create users with `POST /users` and change them with `PATCH /users/{id}` (active, role, units); an admin may not deactivate or demote themselves (409 `SELF_LOCKOUT`).
 - Not built yet: changing limits (REQ-ALM-06), escalation after 120 s (REQ-ALM-07), technical alarms (REQ-ALM-05) and the list of open alarms for the central view.
 
 ## Who may call what
@@ -84,6 +91,7 @@ Errors use Problem Details (RFC 9457), content type `application/problem+json`. 
 | Assign, unassign devices | Own units | No | Yes | No | No |
 | List devices (no vital signs) | Own units | No | Yes | No | No |
 | Units, users, absolute limits | No | No | No | Yes | No |
+| `/auth/me` | Yes | Yes | Yes | Yes | No |
 | `/ingest/*` | No | No | No | No | Own serial |
 
-This table is the input for the role by endpoint matrix test, as in Project 2 (group G there).
+This table is the input for the role by endpoint matrix test, as in Project 2 (group G there): `tests/access/test_matrix.py` checks 18 routes for 7 callers (5 staff, no token, a monitor's credential), and that no refused request changed anything. Patients and devices belong to no unit, so any nurse may register a patient or list devices.

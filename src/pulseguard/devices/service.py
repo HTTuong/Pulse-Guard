@@ -7,7 +7,6 @@ existence (404), permission (403), state (409).
 
 import base64
 import binascii
-import hashlib
 import json
 import secrets
 import uuid
@@ -17,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from pulseguard.access.actor import Actor, Role
+from pulseguard.access.credentials import hash_credential
 from pulseguard.clock import Clock, to_wire
 from pulseguard.devices import assignments
 from pulseguard.devices.schemas import (
@@ -32,11 +32,6 @@ from pulseguard.devices.schemas import (
 from pulseguard.errors import ApiError, not_found
 from pulseguard.models import Bed, Device, DeviceAssignment, DeviceConnection, MonitoringSession
 from pulseguard.sessions.service import conflict_from, latest_stay
-
-
-def hash_credential(credential: str) -> str:
-    # The credential is 256 random bits, so a plain SHA-256 is enough; no password stretching.
-    return hashlib.sha256(credential.encode()).hexdigest()
 
 
 def device_out(db: Session, device: Device) -> DeviceOut:

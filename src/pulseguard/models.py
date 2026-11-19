@@ -211,3 +211,9 @@ class AlarmEngineState(Base):
     abnormal_since: Mapped[datetime | None] = mapped_column(Timestamp)
     high_since: Mapped[datetime | None] = mapped_column(Timestamp)
     normal_since: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
+class UserUnit(Base):
+    __tablename__ = "user_unit"
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"), primary_key=True)
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("unit.id"), primary_key=True)

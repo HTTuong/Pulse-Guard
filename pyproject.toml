@@ -16,6 +16,7 @@ dependencies = [
   "psycopg[binary]==3.3.9",
   "pydantic==2.14.3",
   "pydantic-settings==2.16.2",
+  "pyjwt==2.15.1",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +38,7 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "SIM", "S", "DTZ"]
 # DTZ: no naive datetimes anywhere (R-ORD-03). S: security checks; asserts are fine in tests.
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "S105", "S106"]  # fake secrets and passwords are the point of the tests
 
 [tool.mypy]
 strict = true

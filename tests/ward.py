@@ -4,6 +4,7 @@ registered in tests/conftest.py so every test package can use it."""
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -11,10 +12,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
+from pulseguard.access import tokens
 from pulseguard.access.actor import Actor, Role, current_actor
 from pulseguard.api.app import create_app
 from pulseguard.db import make_engine, make_sessionmaker
-from tests.conftest import FakeClock
+from tests.conftest import TEST_JWT_SECRET, FakeClock
 
 W1 = uuid.UUID("10000000-0000-0000-0000-000000000001")
 W2 = uuid.UUID("10000000-0000-0000-0000-000000000002")
@@ -26,6 +28,7 @@ PHYSICIAN_W1 = Actor(
 TECHNICIAN = Actor(
     uuid.UUID("30000000-0000-0000-0000-000000000004"), Role.TECHNICIAN, frozenset({W1, W2})
 )
+ADMIN = Actor(uuid.UUID("30000000-0000-0000-0000-000000000005"), Role.ADMIN, frozenset())
 
 
 def bed(unit: int, number: int) -> uuid.UUID:
@@ -44,7 +47,14 @@ INSERT INTO app_user (id, email, display_name, role, password_hash) VALUES
   ('30000000-0000-0000-0000-000000000001', 'nurse1@example.com', 'Nurse One', 'NURSE', 'x'),
   ('30000000-0000-0000-0000-000000000002', 'nurse2@example.com', 'Nurse Two', 'NURSE', 'x'),
   ('30000000-0000-0000-0000-000000000003', 'doc1@example.com', 'Doctor One', 'PHYSICIAN', 'x'),
-  ('30000000-0000-0000-0000-000000000004', 'tech1@example.com', 'Tech One', 'TECHNICIAN', 'x');
+  ('30000000-0000-0000-0000-000000000004', 'tech1@example.com', 'Tech One', 'TECHNICIAN', 'x'),
+  ('30000000-0000-0000-0000-000000000005', 'admin1@example.com', 'Admin One', 'ADMIN', 'x');
+INSERT INTO user_unit (user_id, unit_id) VALUES
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001'),
+  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001'),
+  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002');
 """
 
 
@@ -65,6 +75,19 @@ class Ward:
     def sessions(self) -> Session:
         """A database session for calling module functions directly."""
         return make_sessionmaker(self.engine)()
+
+    def token(self, actor: Actor, version: int = 0) -> str:
+        """A real staff token for a seeded user, signed with the test secret, issued now."""
+        token, _ = tokens.issue(TEST_JWT_SECRET, actor.user_id, version, self.clock.now(),
+                                timedelta(hours=8))  # fmt: skip
+        return token
+
+    def as_token(self, token: str | None) -> TestClient:
+        """A client that authenticates for real: no override, the token in every request."""
+        client = self.client(None)
+        if token is not None:
+            client.headers["Authorization"] = f"Bearer {token}"
+        return client
 
     def scalar(self, sql: str, **params: object) -> object:
         """One value from the database, with bound parameters (never formatted into the SQL)."""
