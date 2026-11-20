@@ -384,20 +384,25 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
-          description: Raw readings or buckets, oldest first by measured time
+          description: Raw readings or buckets, oldest first by measured time; buckets come in one response and are not paginated
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - properties:
-                      downsampled: { type: boolean }
-                      items:
-                        type: array
-                        items:
-                          oneOf:
-                            - $ref: "#/components/schemas/Measurement"
-                            - $ref: "#/components/schemas/Bucket"
+                type: object
+                required: [parameter, start, end, downsampled, total, items, next_cursor]
+                properties:
+                  parameter: { $ref: "#/components/schemas/Parameter" }
+                  start: { $ref: "#/components/schemas/Instant" }
+                  end: { $ref: "#/components/schemas/Instant" }
+                  downsampled: { type: boolean }
+                  total: { type: integer, description: Readings in the range }
+                  items:
+                    type: array
+                    items:
+                      oneOf:
+                        - $ref: "#/components/schemas/Measurement"
+                        - $ref: "#/components/schemas/Bucket"
+                  next_cursor: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -414,14 +419,17 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
-          description: Alarms ordered by start time
+          description: Alarms that started before `to` and were not resolved before `from`, by start time
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - properties:
-                      items: { type: array, items: { $ref: "#/components/schemas/Alarm" } }
+                type: object
+                required: [start, end, items, next_cursor]
+                properties:
+                  start: { $ref: "#/components/schemas/Instant" }
+                  end: { $ref: "#/components/schemas/Instant" }
+                  items: { type: array, items: { $ref: "#/components/schemas/Alarm" } }
+                  next_cursor: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -801,20 +809,21 @@ components:
             changed_by: { type: [string, "null"], format: uuid }
     Measurement:
       type: object
-      required: [seq, device_id, parameter, value, measured_at]
+      required: [seq, device_id, serial, parameter, value, measured_at]
       properties:
         seq: { type: integer }
         device_id: { type: string, format: uuid }
+        serial: { type: string }
         parameter: { $ref: "#/components/schemas/Parameter" }
         value: { type: number }
         measured_at: { $ref: "#/components/schemas/Instant" }
     Bucket:
       type: object
       description: Min and max are kept so a short spike stays visible after downsampling
-      required: [from, to, count, min, max, mean]
+      required: [start, end, count, min, max, mean]
       properties:
-        from: { $ref: "#/components/schemas/Instant" }
-        to: { $ref: "#/components/schemas/Instant" }
+        start: { $ref: "#/components/schemas/Instant" }
+        end: { $ref: "#/components/schemas/Instant" }
         count: { type: integer }
         min: { type: number }
         max: { type: number }

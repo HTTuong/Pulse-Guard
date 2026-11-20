@@ -13,6 +13,7 @@ from pulseguard.config import Settings
 from pulseguard.db import make_engine, make_sessionmaker
 from pulseguard.devices.router import router as devices_router
 from pulseguard.ingest.router import router as ingest_router
+from pulseguard.measurements.router import router as history_router
 from pulseguard.sessions.router import router as sessions_router
 
 API_PREFIX = "/api/v1"
@@ -44,4 +45,5 @@ def create_app(
     app.include_router(devices_router, prefix=API_PREFIX)
     app.include_router(ingest_router, prefix=API_PREFIX)
     app.include_router(alarms_router, prefix=API_PREFIX)
+    app.include_router(history_router, prefix=API_PREFIX)
     return app

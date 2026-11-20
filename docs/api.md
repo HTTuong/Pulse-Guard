@@ -53,7 +53,14 @@ Errors use Problem Details (RFC 9457), content type `application/problem+json`. 
 
 ## Downsampling
 
-`GET /sessions/{id}/measurements` returns raw readings while the range holds at most `max_points`; otherwise it returns equal time buckets with `count`, `min`, `max` and `mean`. Min and max are kept so that a short spike that raised an alarm is still visible on the chart (REQ-VIEW-03). Empty buckets are left out, so a gap in the data shows as a gap.
+`GET /sessions/{id}/measurements?parameter=PR&from=...&to=...` returns raw readings while the range holds at most `max_points` (10 to 2000, default 500); otherwise it returns equal time buckets with `count`, `min`, `max` and `mean`. Min and max are kept so that a short spike that raised an alarm is still visible on the chart (REQ-VIEW-03). Empty buckets are left out, so a gap in the data shows as a gap.
+
+- `total` is the number of readings in the range; `downsampled` says which of the two forms came back.
+- Bucket widths are whole microseconds, rounded up, so there are never more buckets than `max_points`. Bucket edges are exact: each bucket ends where the next one starts, the last one ends at `to`.
+- Raw readings are paginated with a cursor on (measured time, id), so readings measured at the same moment are neither skipped nor repeated, and a late reading stored behind the cursor does not shift the next page. Buckets come in one response; a cursor with downsampled data is 400 `INVALID_CURSOR`.
+- `GET /sessions/{id}/alarms?from=...&to=...` lists the alarms that overlap the range: started before `to` and not resolved before `from`. An alarm still open is in every later range; one resolved exactly at `from` is included, one starting exactly at `to` is not.
+- Both work on closed sessions too, for nurses and physicians of the session's unit.
+- The history of every alarm (`GET /alarms/{id}`) is a chain of allowed steps that ends in the alarm's current state, priority, start, resolution and acknowledgement times. `alarms/history.py` names each way it could break; the tests check every alarm they create, including seeded random scenarios.
 
 ## Ingest
 
