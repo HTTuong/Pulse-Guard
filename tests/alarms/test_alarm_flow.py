@@ -2,9 +2,8 @@
 (REQ-ALM-01 to REQ-ALM-04, REQ-ALM-08, R-REC-04)."""
 
 import random
-from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +11,7 @@ from fastapi.testclient import TestClient
 from pulseguard.access.actor import Actor, current_actor
 from pulseguard.api.app import create_app
 from pulseguard.db import make_engine
-from tests.ingest.bed import Bed, equipped_bed, reading
+from tests.ingest.bed import Bed, Pulse, equipped_bed, reading
 from tests.ward import NURSE_W1, NURSE_W2, PHYSICIAN_W1, TECHNICIAN, Ward
 
 pytestmark = pytest.mark.db
@@ -24,32 +23,6 @@ def bed(ward: Ward) -> Bed:
     equipped = equipped_bed(ward, 1)
     ward.clock.current += timedelta(minutes=1)
     return equipped
-
-
-class Pulse:
-    """Pulse readings one per second from the ward clock, with their own seq numbers."""
-
-    def __init__(self, bed: Bed) -> None:
-        self.bed, self.seq = bed, 0
-        self.start = bed.ward.clock.now() - timedelta(seconds=40)
-        self.second = 0
-
-    def readings(self, values: Sequence[float], parameter: str = "PR") -> list[dict[str, object]]:
-        batch = []
-        for value in values:
-            self.seq += 1
-            at = self.start + timedelta(seconds=self.second)
-            batch.append(reading(PO, self.seq, at, parameter, value))
-            self.second += 1
-        return batch
-
-    def send(self, values: Sequence[float], parameter: str = "PR") -> None:
-        response = self.bed.send(self.readings(values, parameter))
-        assert response.status_code == 200, response.text
-        assert len(response.json()["stored"]) == len(values), response.json()
-
-    def at(self, second: int) -> datetime:
-        return self.start + timedelta(seconds=second)
 
 
 def alarms(ward: Ward) -> list[tuple[object, ...]]:

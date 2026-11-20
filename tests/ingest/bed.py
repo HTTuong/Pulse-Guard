@@ -1,5 +1,6 @@
 """A bed with a patient monitor and two sensors, and helpers to send batches as that monitor."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -85,3 +86,29 @@ def reading(
 
 def later(ward: Ward, seconds: float) -> datetime:
     return ward.clock.now() + timedelta(seconds=seconds)
+
+
+class Pulse:
+    """Pulse readings one per second from the ward clock, with their own seq numbers."""
+
+    def __init__(self, bed: Bed, sensor: str = "SN-PO-0001") -> None:
+        self.bed, self.seq, self.sensor = bed, 0, sensor
+        self.start = bed.ward.clock.now() - timedelta(seconds=40)
+        self.second = 0
+
+    def readings(self, values: Sequence[float], parameter: str = "PR") -> list[dict[str, object]]:
+        batch = []
+        for value in values:
+            self.seq += 1
+            at = self.start + timedelta(seconds=self.second)
+            batch.append(reading(self.sensor, self.seq, at, parameter, value))
+            self.second += 1
+        return batch
+
+    def send(self, values: Sequence[float], parameter: str = "PR") -> None:
+        response = self.bed.send(self.readings(values, parameter))
+        assert response.status_code == 200, response.text
+        assert len(response.json()["stored"]) == len(values), response.json()
+
+    def at(self, second: int) -> datetime:
+        return self.start + timedelta(seconds=second)
