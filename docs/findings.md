@@ -46,3 +46,9 @@ Defects and surprises found while building and testing, with the evidence and wh
 - A token signed with HS512 was refused by its test, but because it lacked claims, not because of its algorithm. A mutant that allowed HS512 survived. The test now signs a complete, valid set of claims with HS256 (accepted) and with HS512 (refused).
 - No test deactivated a user without raising `token_version`. Since the API always raises it, a mutant that ignored the `active` flag survived. A deactivation made straight in the database, as in an emergency, would have left the token working. The test now does exactly that.
 - Both are tests that passed for the wrong reason. A green test only proves what it checks; mutants show what it does not.
+
+## Note: two tests that checked less than they said (d245)
+
+- A test claimed that rounding bucket widths down would give one bucket too many. Widths are in microseconds, so rounding down makes a bucket less than a microsecond shorter, and its 120 readings over 120 s never reached the extra bucket. A mutant that rounded down survived. The test now fills a 2 s range with 2000 readings one millisecond apart, where the extra bucket does appear.
+- Seeded random alarm scenarios never produced a condition that came back after it had cleared. The step is covered by a written scenario instead; measuring which steps the random runs reach is how this showed up.
+- One expected time was wrong in a first draft (an alarm resolves at 21 s, not 31 s); the engine's own unit test settled it.
