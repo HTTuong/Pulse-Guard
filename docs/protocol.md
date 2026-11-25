@@ -2,7 +2,7 @@
 
 The protocol between a sensor and the patient monitor of its bed, version 1. It is written so that each rule can be checked by a protocol test (d258, d259); rule ids `P-xx` are what those tests name, next to the requirement.
 
-Last updated: 2026-11-12. Decided in ADR-002. The link from the patient monitor to the backend is HTTP and is specified in `api.md` (d238).
+Last updated: 2026-11-25 (BAD_FIELD added, d248). Decided in ADR-002. The link from the patient monitor to the backend is HTTP and is specified in `api.md` (d238).
 
 > PulseGuard is a simulated system for practising testing. It is not a medical device.
 
@@ -20,8 +20,8 @@ Last updated: 2026-11-12. Decided in ADR-002. The link from the patient monitor 
 
 **P-03** A receiver must handle a frame split over several reads and several frames in one read. A frame that has started but is not complete within 5 s closes the connection.
 
-**P-04** The JSON must be a single object. A frame that is not valid UTF-8, not valid JSON, not an object, contains `NaN` or `Infinity`, or repeats a key gets ERROR `BAD_JSON`; the connection stays open.
-- Python's `json.loads` accepts `NaN` and keeps the last of repeated keys without an error (checked on 2026-11-12), so the decoder must reject both on purpose.
+**P-04** The JSON must be a single object. A frame that is not valid UTF-8, not valid JSON, not an object, contains `NaN` or `Infinity`, has a number too large for a double (`1e999`), or repeats a key gets ERROR `BAD_JSON`; the connection stays open.
+- Python's `json.loads` accepts `NaN` and keeps the last of repeated keys without an error (checked on 2026-11-12), and reads `1e999` as infinity (checked on 2026-11-25), so the decoder must reject all three on purpose.
 
 Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed by
 
@@ -39,11 +39,11 @@ Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed
 
 **P-05** Times are ISO 8601 in UTC with milliseconds and a `Z`, for example `2026-11-12T18:52:03.000Z`. A time with another offset, without milliseconds or that does not exist gets ERROR `BAD_TIME`. Project 2 showed that accepting times without an offset leads to silent shifts (R-TIME-01 there).
 
-**P-06** A missing required field gets ERROR `MISSING_FIELD` with the field's name; an unknown `type` gets `UNKNOWN_TYPE`; fields that are not listed here are ignored, so a newer sender can add fields without breaking an older receiver.
+**P-06** A missing required field gets ERROR `MISSING_FIELD` with the field's name; a field that is present but has a value that is not allowed (wrong JSON type, a device type that does not exist, parameters that do not fit the device type, `seq` below 1, a second HELLO) gets `BAD_FIELD`; an unknown `type`, or a `PAIR` sent by a sensor, gets `UNKNOWN_TYPE`; fields that are not listed here are ignored, so a newer sender can add fields without breaking an older receiver.
 
 ## Versions
 
-**P-07** HELLO lists the versions the sensor supports in `versions`. The monitor answers with the highest version both support, in the ACK of HELLO; every later frame must carry that `v`.
+**P-07** HELLO lists the versions the sensor supports in `versions`. The monitor answers with the highest version both support, in the ACK of HELLO; every later frame must carry that `v`. `v` is the integer itself: `true`, `1.0` and `"1"` are not version 1.
 - No common version: ERROR `UNSUPPORTED_VERSION`, then close.
 - A later frame with another `v`: ERROR `UNSUPPORTED_VERSION` for that frame only; the connection stays open (REQ-CON-01).
 
@@ -69,7 +69,7 @@ Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed
 {"v":1,"type":"PAIR","status":"PAIRED","pairing":"pr-7f3a","sent_at":"2026-11-12T18:52:00.050Z"}
 ```
 
-**P-09** After HELLO the monitor sends PAIR with `status` PAIRED if the backend has paired this sensor with this monitor's session, or ERROR `NOT_PAIRED` if not, and keeps the connection open, checking again every 5 s. The sensor sends no MEASUREMENT before PAIRED. The pairing comes from the backend (REQ-DEV-05); the sensor never learns who the patient is.
+**P-09** After HELLO the monitor sends PAIR with `status` PAIRED if the backend has paired this sensor with this monitor's session, or ERROR `NOT_PAIRED` if not, and keeps the connection open, checking again every 5 s. The ERROR is sent once, not at every check; PAIR follows when the backend pairs the sensor. The sensor sends no MEASUREMENT before PAIRED. The pairing comes from the backend (REQ-DEV-05); the sensor never learns who the patient is.
 
 **P-10** When the backend unassigns the sensor, the monitor sends PAIR with `status` UNPAIRED and the time `unpaired_at`. The sensor stops measuring, sends any readings it still has that were measured before `unpaired_at`, and the monitor refuses readings measured after it with ERROR `NOT_PAIRED` (REQ-MEA-06, R-ISO-01). The sensor answers each PAIR with ACK (`"ack":"PAIR"`).
 
@@ -108,7 +108,7 @@ Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed
 {"v":1,"type":"ERROR","code":"OUT_OF_RANGE","seq":42,"detail":"PR 412 is outside 0 to 300","sent_at":"2026-11-12T18:52:04.010Z"}
 ```
 
-`seq` is present when the error is about one MEASUREMENT. Codes: `BAD_LENGTH`, `BAD_JSON`, `BAD_TIME`, `BAD_UNIT`, `MISSING_FIELD`, `UNKNOWN_TYPE`, `UNSUPPORTED_VERSION`, `HELLO_FIRST`, `NOT_PAIRED`, `WRONG_DEVICE`, `OUT_OF_RANGE`, `SEQ_CONFLICT`.
+`seq` is present when the error is about one MEASUREMENT. Codes: `BAD_LENGTH`, `BAD_JSON`, `BAD_TIME`, `BAD_UNIT`, `MISSING_FIELD`, `BAD_FIELD`, `UNKNOWN_TYPE`, `UNSUPPORTED_VERSION`, `HELLO_FIRST`, `NOT_PAIRED`, `WRONG_DEVICE`, `OUT_OF_RANGE`, `SEQ_CONFLICT`.
 
 ## Sequence numbers, duplicates and order
 

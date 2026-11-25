@@ -52,3 +52,37 @@ Defects and surprises found while building and testing, with the evidence and wh
 - A test claimed that rounding bucket widths down would give one bucket too many. Widths are in microseconds, so rounding down makes a bucket less than a microsecond shorter, and its 120 readings over 120 s never reached the extra bucket. A mutant that rounded down survived. The test now fills a 2 s range with 2000 readings one millisecond apart, where the extra bucket does appear.
 - Seeded random alarm scenarios never produced a condition that came back after it had cleared. The step is covered by a written scenario instead; measuring which steps the random runs reach is how this showed up.
 - One expected time was wrong in a first draft (an alarm resolves at 21 s, not 31 s); the engine's own unit test settled it.
+
+## F-04: The protocol had no error code for a field with a value that is not allowed
+
+- Found: 2026-11-25, d248, while writing the checks of HELLO and MEASUREMENT for the monitor.
+- `protocol.md` had `MISSING_FIELD` for an absent field, and `BAD_UNIT`, `BAD_TIME` and `OUT_OF_RANGE` for three particular fields. Nothing covered a `device_type` that does not exist, parameters that do not fit the device type, `seq` of 0 or a text, a `value` that is not a number, or a second HELLO. Each would have had to borrow a code that says something else.
+- Decision: a new code `BAD_FIELD` (P-06). The protocol is version 1 of a simulated system that nothing has used yet, so adding a code is not a version change.
+- Also written down in `protocol.md` because the code needed a decision: ERROR `NOT_PAIRED` is sent once, not every 5 s (P-09); a `PAIR` frame from a sensor is `UNKNOWN_TYPE`.
+- Kind: a specification gap, found by writing the code that has to apply the specification.
+
+## F-05: `"v": true` was accepted as protocol version 1
+
+- Found: 2026-11-25, d248, by a test of wrong version values written before the check was strict.
+- Cause: in Python `True == 1` and `1.0 == 1`, so `message["v"] != version` let both through. A sensor that sent `"v": true` was treated as speaking version 1.
+- Fix: the version must be the integer itself (`type(v) is int`), and P-07 says so. The test lists `2, 0, "1", null, 1.5, 1.0, true, [1]`.
+- Lesson: the same trap exists for any `==` on a decoded JSON value. `seq` and `value` already reject `bool`; `parse_wire_time` accepts only text.
+
+## Note: a limit I assumed was wrong, measured instead (d248)
+
+- I expected a frame of 4096 bytes could nest JSON deeper than Python allows and crash the reader. On 2026-11-25 (Python 3.12.3) `json.loads` read 2048 levels of arrays without error and failed at 10000. A frame of at most 4096 bytes holds fewer than 2048 levels, so a frame alone cannot overflow the parser.
+- The `RecursionError` is still caught as `BAD_JSON`, in case a later Python lowers its limit; a test forces it. A second test reads the deepest frame that fits.
+- Also checked on the same day: `json.loads` accepts `NaN`, `Infinity` and repeated keys, and turns `1e999` into infinity. The last one is not in P-04 of the first draft and is now refused too.
+
+## Note: what 41 mutants of the monitor showed (d248)
+
+- 41 deliberate breaks of the framing, codec, session, buffer and server code. First run: 33 failed a test and 8 survived. After the new tests: 39 fail a test and 2 survive, both equivalent.
+- Equivalent, by design (2): matching a time with `\d` instead of `[0-9]`, and `match` instead of `fullmatch`. `datetime.fromisoformat` rejects digits of other scripts and trailing text itself (checked), so the regex is a first layer and the parser a second. The regex stays strict so the rule reads in one place.
+- Missing tests (6), now added:
+  - Highest common version: with one supported version, highest and lowest are the same. A test now gives the monitor two versions.
+  - A gap of exactly one missing reading: the test used a gap of two.
+  - A frame that completes late must start a fresh deadline for the next one; a test that sends frame A late and then frame B late.
+  - The silence timer must not be reset by bytes of an unfinished frame.
+  - A HELLO without a common version closes the connection (only the session was tested, not the server's handling of `close`).
+  - Cancellation must be passed on (`task.cancelled()`), not swallowed.
+- Pinned limitation: a reading that arrives late, after its successor, is counted as a gap although nothing was lost (`test_pinned_a_late_reading_is_counted_as_a_gap_when_its_successor_came_first`). The monitor cannot tell late from lost at the moment of arrival; the backend sees the full order by `measured_at`.
