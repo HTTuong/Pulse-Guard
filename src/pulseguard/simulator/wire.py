@@ -3,23 +3,14 @@
 Only what a sensor sends is here. Reading frames is the monitor's job (d248).
 """
 
-import json
-import struct
 from datetime import datetime
 from typing import Any
 
 from pulseguard.clock import to_wire
+from pulseguard.protocol.framing import MAX_FRAME, VERSION, encode_frame
 from pulseguard.simulator.generator import Reading
 
-VERSION = 1
-MAX_FRAME = 4096  # P-02
-
-
-def encode_frame(message: dict[str, Any]) -> bytes:
-    body = json.dumps(message, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    if not 1 <= len(body) <= MAX_FRAME:
-        raise ValueError(f"frame body of {len(body)} bytes; P-02 allows 1 to {MAX_FRAME}")
-    return struct.pack(">I", len(body)) + body
+__all__ = ["MAX_FRAME", "VERSION", "encode_frame", "hello", "measurement", "heartbeat"]
 
 
 def hello(
