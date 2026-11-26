@@ -9,22 +9,35 @@ import json
 from datetime import datetime
 
 from pulseguard.clock import SystemClock
+from pulseguard.monitor.logs import configure_logging
 from pulseguard.simulator import wire
-from pulseguard.simulator.client import stream
 from pulseguard.simulator.generator import SensorSimulator
 from pulseguard.simulator.scenarios import SCENARIOS, scenario_named
+from pulseguard.simulator.sensor import SensorClient
 
 
 async def send_to_monitor(args: argparse.Namespace) -> None:
-    """Real time: one second of simulated time per second, starting now."""
+    """Real time, one measurement per second from now; reconnects when the monitor goes away."""
     host, port = args.connect.rsplit(":", 1)
     clock = SystemClock()
     sim = SensorSimulator(
         args.device, args.device_type, scenario_named(args.scenario), args.seed, clock.now()
     )
-    replies = await stream(host, int(port), sim, args.seconds, clock, pace_s=1.0)
-    for reply in replies:
-        print(json.dumps(reply, separators=(",", ":")))
+    sensor = SensorClient(host, int(port), sim, clock, args.seed, ticks=args.seconds)
+    task = asyncio.create_task(sensor.run())
+    try:
+        await sensor.wait_drained(args.seconds + 600)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    summary = {
+        "connections": sensor.connections,
+        "answers": dict(sensor.answers),
+        "refused": sensor.refused,
+        "dropped": sensor.outbox.dropped,
+        "resent": sensor.outbox.resent,
+    }
+    print(json.dumps(summary, separators=(",", ":")))
 
 
 def main() -> None:
@@ -45,6 +58,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.connect:
+        configure_logging()
         asyncio.run(send_to_monitor(args))
         return
     start = datetime.fromisoformat(args.start)
