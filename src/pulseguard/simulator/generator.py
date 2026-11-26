@@ -78,6 +78,14 @@ class SensorSimulator:
         """The highest seq used so far; a sensor stores it to survive a restart (P-14)."""
         return self._next_seq - 1
 
+    def skip(self) -> None:
+        """One moment passes without a measurement, for a sensor that is not measuring (P-10).
+
+        Time moves on, so the next reading carries the right `measured_at`, but no seq is used and
+        no noise is drawn: the readings after a pause do not depend on how long it was.
+        """
+        self._ticks += 1
+
     def tick(self) -> Tick:
         """The next moment of the sensor."""
         at = self._start + self._ticks * self._interval
