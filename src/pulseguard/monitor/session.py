@@ -7,6 +7,7 @@ decides ACK or ERROR is here, so it is tested with plain function calls.
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from pulseguard.clock import Clock, to_wire
@@ -70,6 +71,7 @@ class Session:
         self.parameters: list[str] = []
         self.version: int | None = None
         self.pairing_id: str | None = None
+        self.unpaired_at: datetime | None = None  # P-10: set after UNPAIRED
         self._not_paired_said = False
 
     @property
@@ -94,22 +96,36 @@ class Session:
     def heartbeat(self) -> dict[str, Any]:
         return self._stamp({"type": "HEARTBEAT", "status": "OK"})
 
-    # ---- pairing (P-09) ---------------------------------------------------------------------
+    # ---- pairing (P-09, P-10) ---------------------------------------------------------------
 
     async def check_pairing(self) -> list[dict[str, Any]]:
-        """Ask the backend; PAIR when paired, ERROR NOT_PAIRED the first time it is not."""
-        if self.device is None or self.paired:
+        """Ask the backend and say what changed: PAIRED, UNPAIRED, or NOT_PAIRED (the first time).
+
+        Called now and then for as long as the connection lives, so an unassignment that happens
+        while the sensor is connected reaches it (P-10).
+        """
+        if self.device is None:
             return []
-        pairing_id = await self.pairing.pairing_of(self.device, self.monitor)
-        if pairing_id is None:
-            if self._not_paired_said:
+        state = await self.pairing.pairing_of(self.device, self.monitor)
+        if state is not None and state.unpaired_at is None:
+            if self.pairing_id == state.id:
                 return []
-            self._not_paired_said = True
-            log_event(self.log, "not_paired", device=self.device)
-            return [self.error("NOT_PAIRED", "the backend has not paired this sensor")]
-        self.pairing_id = pairing_id
-        log_event(self.log, "paired", device=self.device, pairing=pairing_id)
-        return [self._stamp({"type": "PAIR", "status": "PAIRED", "pairing": pairing_id})]
+            self.pairing_id, self.unpaired_at = state.id, None
+            self._not_paired_said = False
+            log_event(self.log, "paired", device=self.device, pairing=state.id)
+            return [self._stamp({"type": "PAIR", "status": "PAIRED", "pairing": state.id})]
+        if self.paired:
+            # Unassigned by the backend. Its time if it gave one, else the moment we noticed.
+            at = state.unpaired_at if state and state.unpaired_at else self.clock.now()
+            self.pairing_id, self.unpaired_at = None, at
+            self._not_paired_said = True  # this sensor knows; no NOT_PAIRED on top of UNPAIRED
+            log_event(self.log, "unpaired", device=self.device, unpaired_at=to_wire(at))
+            return [self._stamp({"type": "PAIR", "status": "UNPAIRED", "unpaired_at": to_wire(at)})]
+        if self._not_paired_said:
+            return []
+        self._not_paired_said = True
+        log_event(self.log, "not_paired", device=self.device)
+        return [self.error("NOT_PAIRED", "the backend has not paired this sensor")]
 
     # ---- one frame --------------------------------------------------------------------------
 
@@ -225,7 +241,7 @@ class Session:
     def _measurement(self, message: dict[str, Any]) -> Reply:
         seq = message.get("seq")
         known_seq = seq if isinstance(seq, int) and not isinstance(seq, bool) else None
-        if not self.paired:
+        if not self.paired and self.unpaired_at is None:
             raise Refused("NOT_PAIRED", "no readings before PAIR", known_seq)
         device = _require(message, "device", known_seq)
         seq = _require(message, "seq")
@@ -251,6 +267,8 @@ class Session:
             raise Refused("BAD_TIME", "measured_at must be like 2026-11-12T18:52:03.000Z", seq)
         if refusal := rules.check_time(measured_at, self.clock.now()):
             raise Refused("BAD_TIME", refusal.detail, seq)
+        if self.unpaired_at is not None and not self.paired and measured_at >= self.unpaired_at:
+            raise Refused("NOT_PAIRED", "measured after the sensor was unpaired", seq)
         stored = rules.stored_value(value)
         refusal = rules.check_value(parameter, stored)
         if refusal is not None or stored is None:

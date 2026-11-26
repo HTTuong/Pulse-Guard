@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from pulseguard.monitor.logs import MAX_TEXT
+from pulseguard.monitor.pairing import Pairing
 from pulseguard.protocol.codec import parse_wire_time
 from tests.monitor.helpers import (
     DEVICE,
@@ -197,7 +198,7 @@ def test_the_pairing_question_names_this_monitor_and_sensor() -> None:
     asked: list[tuple[str, str]] = []
 
     class Spy:
-        async def pairing_of(self, device: str, monitor: str) -> str | None:
+        async def pairing_of(self, device: str, monitor: str) -> Pairing | None:
             asked.append((device, monitor))
             return None
 

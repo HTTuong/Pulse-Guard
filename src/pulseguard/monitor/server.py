@@ -31,7 +31,7 @@ class MonitorConfig:
     frame_s: float = 5.0  # a frame that has started must complete in this time (P-03)
     heartbeat_s: float = 5.0  # (P-13)
     silent_s: float = 15.0  # no frame at all for this long closes the connection
-    pair_check_s: float = 5.0  # ask the backend again while not paired (P-09)
+    pair_check_s: float = 5.0  # ask the backend again (P-09, P-10)
 
 
 @dataclass
@@ -180,8 +180,7 @@ class _Connection:
             await self.send([self.session.heartbeat()])
 
     async def _pairing(self) -> None:
-        while not self.session.paired:
+        """Ask the backend for as long as the connection lives: pairing can change at any time."""
+        while True:
             await self.send(await self.session.check_pairing())
-            if self.session.paired:
-                return
             await asyncio.sleep(self.config.pair_check_s)
