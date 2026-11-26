@@ -47,9 +47,11 @@ The nearest deadline decides how long a read may wait, so one loop serves all th
 
 `listening`, `connection_open`, `hello`, `paired`, `not_paired`, `measurement` (with `result` STORED or DUPLICATE), `seq_gap`, `seq_conflict`, `frame_refused` (with `code`), `sensor_error`, `timeout` (with `timer`), `connection_error`, `internal_error`, `connection_closed` (with `reason`).
 
+## Pairing while connected (d249)
+
+The monitor asks the backend every `pair_check_s` for as long as the connection lives, and says what changed: PAIR PAIRED (also when the pairing id changes), PAIR UNPAIRED with `unpaired_at` (once), ERROR NOT_PAIRED (once, if never paired). A reading measured before `unpaired_at` is still accepted; one measured at or after it is refused with NOT_PAIRED. The monitor only knows the latest state, so after pairing again it accepts a reading measured during the gap; the backend refuses it because no session covered that time (pinned by a test).
+
 ## Not here yet
 
-- Unpairing while connected (P-10, PAIR with UNPAIRED): d249.
-- Sensor side resend and reconnect with backoff: d249.
 - Disk buffer, forwarding to the backend, SENSOR_LOST and MONITOR_LOST: d250.
 - Two connections for the same serial are both accepted. What the monitor should do is not in the protocol yet.

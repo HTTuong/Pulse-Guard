@@ -35,3 +35,21 @@ A scenario is data (keyframes and no-signal intervals), so a new one is a new en
 
 - Sending over TCP, resending without ACK and reconnecting: d248 and d249.
 - Fault injection (delay, drop, duplicate, reorder, disconnect, clock skew): added when the protocol tests need it (d258, d259).
+
+## The sensor client (d249)
+
+`SensorClient` (`simulator/sensor.py`) is a sensor that behaves as protocol.md asks when things go wrong. Run it by hand, and stop the monitor in the middle with `kill` (not Ctrl+C, which a background job ignores):
+
+    python -m pulseguard.monitor --port 7600 --pair SN-PO-0001=pr-1
+    python -m pulseguard.simulator --connect 127.0.0.1:7600 --scenario normal --seconds 30
+
+| Rule | Where | What it does |
+|---|---|---|
+| P-15, P-16 | `outbox.py` | Keeps every reading until ACK or ERROR; sends again after 3 s; at most 50 waiting |
+| P-17 | `outbox.py` | Holds at most 1200 readings and drops the oldest, counting the drops |
+| P-19 | `backoff.py` | 1, 2, 4, 8, 16, then 30 s, each plus or minus 10 % from a seeded generator |
+| P-20 | `outbox.py`, `sensor.py` | After a lost connection every unanswered reading goes again, oldest first, before new ones |
+| P-09, P-10 | `sensor.py` | Sends nothing before PAIRED; on UNPAIRED stops measuring and drops readings measured since |
+| P-13 | `sensor.py` | Heartbeat every 5 s, with NO_SIGNAL while the probe is off |
+
+The outbox and the backoff do no I/O and take `now` as an argument, so their rules are tested with plain calls; only the connection life cycle needs sockets. The sensor tests put a proxy between the sensor and the monitor (`tests/sensor/faultproxy.py`) that can cut every connection, or hold one direction for a while.

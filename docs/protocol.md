@@ -72,6 +72,9 @@ Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed
 **P-09** After HELLO the monitor sends PAIR with `status` PAIRED if the backend has paired this sensor with this monitor's session, or ERROR `NOT_PAIRED` if not, and keeps the connection open, checking again every 5 s. The ERROR is sent once, not at every check; PAIR follows when the backend pairs the sensor. The sensor sends no MEASUREMENT before PAIRED. The pairing comes from the backend (REQ-DEV-05); the sensor never learns who the patient is.
 
 **P-10** When the backend unassigns the sensor, the monitor sends PAIR with `status` UNPAIRED and the time `unpaired_at`. The sensor stops measuring, sends any readings it still has that were measured before `unpaired_at`, and the monitor refuses readings measured after it with ERROR `NOT_PAIRED` (REQ-MEA-06, R-ISO-01). The sensor answers each PAIR with ACK (`"ack":"PAIR"`).
+- A reading measured exactly at `unpaired_at` counts as after it: assignments are half open ranges.
+- The monitor learns of an unassignment when it next asks the backend (every 5 s). A reading measured after `unpaired_at` that arrives before that is accepted by the monitor and refused by the backend, which also checks the session of every reading.
+- The sensor drops its own readings measured at or after `unpaired_at`, since they would only be refused, and keeps measuring time but not values until it is paired again. No `seq` is used while it does not measure.
 
 ### MEASUREMENT (sensor to monitor)
 
@@ -124,7 +127,7 @@ Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed
 
 **P-16** A reading with no answer within 3 s is sent again with the same `seq` and content. At most 50 readings may be waiting for an answer at once; the rest queue in `seq` order.
 
-**P-17** While not connected, the sensor keeps up to 1200 readings, 10 minutes of a pulse oximeter. When full, it drops the oldest and counts the drop; the gap shows on the monitor (P-14).
+**P-17** While not connected, the sensor keeps up to 1200 readings, 10 minutes of a pulse oximeter. When full, it drops the oldest and counts the drop; the gap shows on the monitor (P-14). The limit counts at all times, not only while disconnected: a monitor that sends heartbeats but never answers would otherwise make the queue grow without end.
 
 ## Timeouts
 
@@ -141,7 +144,7 @@ Example: a MEASUREMENT of 184 bytes is sent as the length `00 00 00 b8` followed
 
 ## Reconnection
 
-**P-19** After a closed or failed connection the sensor waits and tries again: 1 s, 2 s, 4 s, 8 s, 16 s, then 30 s for every next attempt, each plus or minus 10 % of random jitter from a seeded generator, so a test can predict it (REQ-CON-04, REQ-NFR-03). The sensor never stops trying while it has readings or is paired.
+**P-19** After a closed or failed connection the sensor waits and tries again: 1 s, 2 s, 4 s, 8 s, 16 s, then 30 s for every next attempt, each plus or minus 10 % of random jitter from a seeded generator, so a test can predict it (REQ-CON-04, REQ-NFR-03). The sensor never stops trying while it has readings or is paired. The waits start again at 1 s after a connection whose HELLO was acknowledged; the jitter generator is not reset, so the whole series of waits stays predictable.
 
 **P-20** After reconnecting, the sensor sends HELLO, waits for PAIR, then resends every reading still waiting for an answer, oldest `seq` first, before new ones.
 

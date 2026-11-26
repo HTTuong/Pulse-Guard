@@ -86,3 +86,22 @@ Defects and surprises found while building and testing, with the evidence and wh
   - A HELLO without a common version closes the connection (only the session was tested, not the server's handling of `close`).
   - Cancellation must be passed on (`task.cancelled()`), not swallowed.
 - Pinned limitation: a reading that arrives late, after its successor, is counted as a gap although nothing was lost (`test_pinned_a_late_reading_is_counted_as_a_gap_when_its_successor_came_first`). The monitor cannot tell late from lost at the moment of arrival; the backend sees the full order by `measured_at`.
+
+## F-06: An ACK with `"seq": true` removed reading 1 from the sensor's outbox
+
+- Found: 2026-11-26, d249, by a test of wrong `seq` values (`99, 0, -1, "1", null, 1.0, true, [1]`) written before the check was strict. The same family as F-05.
+- Cause: `isinstance(True, int)` is true and `True == 1`, so `answered(True)` removed the reading with seq 1. The ERROR path already excluded `bool`; the ACK path did not.
+- Fix: the ACK path excludes `bool` too. The test now covers both paths and every value above.
+- Lesson: after F-05 the rule "never trust `==` or `isinstance(x, int)` on a decoded JSON value" was written down, but not applied to the code that was written next. A list of wrong values per field, run through every path that reads the field, is what catches it.
+
+## Note: a fault the network cannot produce (d249)
+
+- My first test of a silent monitor dropped the monitor's bytes for a while inside a live connection. It hung: the dropped bytes included PAIR, which the monitor sends once, so the sensor never learned it was paired. That is not a protocol defect. TCP never loses bytes in the middle of a live connection; a broken link ends the connection.
+- The proxy now has `stall` and `release`: bytes are held and sent in order, like a network that stops for a while. Dropping bytes is kept only for the answers that were in flight when a connection is cut right after.
+- Lesson: a fault injector must produce faults the real layer can produce, or a test fails for a reason that has no meaning in production.
+
+## Note: what 43 mutants of the sensor and the unpairing showed (d249)
+
+- 43 deliberate breaks of the backoff, outbox, sensor client, simulator `skip` and the monitor's pairing: all 43 fail a test. 28 of them are caught by the unit tests in under a second; the 15 that need a connection (cutting it, reconnect order, silence, backoff reset, NO_SIGNAL, time moving while unpaired) are caught only by the tests with real sockets.
+- Two mutants did not run at first because my pattern did not match the file; the script reports that case, and they were rerun with the right pattern and caught.
+- Pinned: readings acknowledged by a monitor are gone after it restarts (`test_pinned_readings_acknowledged_before_a_monitor_restart_...`). Resolved by the disk buffer in d250. Pinned: after pairing again the monitor accepts a reading measured during the unpaired gap, because it only knows the latest state; the backend refuses it.
